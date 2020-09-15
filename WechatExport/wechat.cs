@@ -502,7 +502,6 @@ namespace WechatExport
             return succ;
         }
 
-        /*
         public void MakeListHTML(List<Form1.DisplayItem> list, string path)
         {
             using(var sw=new StreamWriter(path))
@@ -518,7 +517,6 @@ namespace WechatExport
                 sw.WriteLine(@"</body></html>");
             }
         }
-        */
 
         public string GetBackupFilePath(string vpath)
         {

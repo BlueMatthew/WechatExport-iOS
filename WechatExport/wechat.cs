@@ -405,7 +405,7 @@ namespace WechatExport
                                         var match = Regex.Match(message, @"cdnurl ?= ?""(.+?)""");
                                         if (match.Success)
                                         {
-                                            var localfile = RemoveCdata( match.Groups[1].Value);
+                                            var localfile = RemoveCdata(match.Groups[1].Value);
                                             var match2 = Regex.Match(localfile, @"\/(\w+?)\/\w*$");
                                             if (!match2.Success) localfile = RandomString(10);
                                             else localfile = match2.Groups[1].Value;
@@ -424,6 +424,15 @@ namespace WechatExport
                                         else message = "[视频]";
                                     }
                                     else if (type == 50) message = "[视频/语音通话]";
+                                    else if (type == 43)
+                                    {
+                                        var hasthum = RequireResource(MyPath.Combine(userBase, "Video", table, msgid + ".video_thum"), Path.Combine(assetsdir, msgid + "_thum.jpg"));
+                                        var hasvid = RequireResource(MyPath.Combine(userBase, "Video", table, msgid + ".mp4"), Path.Combine(assetsdir, msgid + ".mp4"));
+                                        if (hasthum && hasvid) message = "<video controls poster=\"" + id + "_files/" + msgid + "_thum.jpg\"><source src=\"" + id + "_files/" + msgid + ".mp4\" type=\"video/mp4\"><a href=\"" + id + "_files/" + msgid + ".mp4\">播放</a></video>";
+                                        else if (hasthum) message = "<img src=\"" + id + "_files/" + msgid + "_thum.jpg\" /> （视频丢失）";
+                                        else if (hasvid) message = "<video controls><source src=\"" + id + "_files/" + msgid + ".mp4\" type=\"video/mp4\"><a href=\"" + id + "_files/" + msgid + ".mp4\">播放</a></video>";
+                                        else message = "[视频]";
+                                    }
                                     else if (type == 3)
                                     {
                                         var hasthum = RequireResource(MyPath.Combine(userBase, "Img", table, msgid + ".pic_thum"), Path.Combine(assetsdir, msgid + "_thum.jpg"));
@@ -438,7 +447,7 @@ namespace WechatExport
                                         var match1 = Regex.Match(message, @"x ?= ?""(.+?)""");
                                         var match2 = Regex.Match(message, @"y ?= ?""(.+?)""");
                                         var match3 = Regex.Match(message, @"label ?= ?""(.+?)""");
-                                        if (match1.Success && match2.Success && match3.Success) message = "[位置 (" + RemoveCdata( match2.Groups[1].Value) + "," + RemoveCdata(match1.Groups[1].Value) + ") " + RemoveCdata(match3.Groups[1].Value) + "]";
+                                        if (match1.Success && match2.Success && match3.Success) message = "[位置 (" + RemoveCdata(match2.Groups[1].Value) + "," + RemoveCdata(match1.Groups[1].Value) + ") " + RemoveCdata(match3.Groups[1].Value) + "]";
                                         else message = "[位置]";
                                     }
                                     else if (type == 49)
@@ -466,11 +475,11 @@ namespace WechatExport
                                     else if (type == 42)
                                     {
                                         var match1 = Regex.Match(message, "nickname ?= ?\"(.+?)\"");
-                                        var match2=Regex.Match(message, "smallheadimgurl ?= ?\"(.+?)\"");
+                                        var match2 = Regex.Match(message, "smallheadimgurl ?= ?\"(.+?)\"");
                                         if (match1.Success)
                                         {
                                             message = "";
-                                            if(match2.Success)message+= "<img src=\"" + RemoveCdata(match2.Groups[1].Value) + "\" style=\"float:left;max-width:100px;max-height:60px\" />";
+                                            if (match2.Success) message += "<img src=\"" + RemoveCdata(match2.Groups[1].Value) + "\" style=\"float:left;max-width:100px;max-height:60px\" />";
                                             message += "[名片] " + RemoveCdata(match1.Groups[1].Value);
                                         }
                                         else message = "[名片]";
@@ -493,6 +502,7 @@ namespace WechatExport
             return succ;
         }
 
+        /*
         public void MakeListHTML(List<Form1.DisplayItem> list, string path)
         {
             using(var sw=new StreamWriter(path))
@@ -508,6 +518,7 @@ namespace WechatExport
                 sw.WriteLine(@"</body></html>");
             }
         }
+        */
 
         public string GetBackupFilePath(string vpath)
         {

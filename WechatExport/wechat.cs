@@ -15,6 +15,13 @@ namespace WechatExport
 {
     class WeChatInterface
     {
+        public class DisplayItem
+        {
+            public string pic;
+            public string text;
+            public string link;
+        }
+
         public Dictionary<string, string> fileDict = null;
         private string currentBackup;
         private List<MBFileRecord> files92;
@@ -667,7 +674,7 @@ namespace WechatExport
             return succ;
         }
 
-        public void MakeListHTML(List<Form1.DisplayItem> list, string path)
+        public void MakeListHTML(List<DisplayItem> list, string path)
         {
             using(var sw=new StreamWriter(path))
             {

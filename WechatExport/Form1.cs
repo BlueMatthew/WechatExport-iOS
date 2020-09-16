@@ -206,7 +206,7 @@ namespace WechatExport
             AddLog("查找UID");
             var UIDs = wechat.FindUIDs();
             AddLog("找到" + UIDs.Count + "个账号的消息记录");
-            var uidList = new List<DisplayItem>();
+            var uidList = new List<WeChatInterface.DisplayItem>();
             foreach (var uid in UIDs)
             {
                 var userBase = Path.Combine("Documents", uid);
@@ -235,7 +235,7 @@ namespace WechatExport
                 wechat.GetChatSessions(conn, out List<string> chats);
                 AddLog("找到" + chats.Count + "个对话");
                 var emojidown = new HashSet<DownloadTask>();
-                var chatList = new List<DisplayItem>();
+                var chatList = new List<WeChatInterface.DisplayItem>();
                 foreach (var chat in chats)
                 {
                     var hash = chat;
@@ -259,7 +259,7 @@ namespace WechatExport
                         if (wechat.SaveHtmlRecord(conn, userBase, userSaveBase, displayname, id, myself, chat, friend, friends, out int count, out HashSet<DownloadTask> _emojidown))
                         {
                             AddLog("成功处理" + count + "条");
-                            chatList.Add(new DisplayItem() { pic = "Portrait/" + (friend != null ? friend.FindPortrait() : "DefaultProfileHead@2x.png"), text = displayname, link = id + ".html" });
+                            chatList.Add(new WeChatInterface.DisplayItem() { pic = "Portrait/" + (friend != null ? friend.FindPortrait() : "DefaultProfileHead@2x.png"), text = displayname, link = id + ".html" });
                         }
                         else AddLog("失败");
                         emojidown.UnionWith(_emojidown);
@@ -301,7 +301,7 @@ namespace WechatExport
                                 downloader.AddTask(item.url, Path.Combine(emojidir, item.filename));
                         }
                 }
-                uidList.Add(new DisplayItem() { pic = myself.ID()+"/Portrait/"+myself.FindPortrait(), text = myself.DisplayName(), link = myself.ID() + "/聊天记录.html" });
+                uidList.Add(new WeChatInterface.DisplayItem() { pic = myself.ID()+"/Portrait/"+myself.FindPortrait(), text = myself.DisplayName(), link = myself.ID() + "/聊天记录.html" });
                 downloader.StartDownload();
                 downloader.WaitToEnd();
                 AddLog("完成当前账号");
@@ -319,12 +319,7 @@ namespace WechatExport
             MessageBox.Show("处理完成");
         }
 
-        public class DisplayItem
-        {
-            public string pic;
-            public string text;
-            public string link;
-        }
+        
 
         void AddLog(string str)
         {

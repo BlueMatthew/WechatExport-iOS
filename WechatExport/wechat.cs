@@ -6,8 +6,10 @@ using System.Text.RegularExpressions;
 using System.Linq;
 using System.Data.SQLite;
 using System.Text;
+
 using System.Diagnostics;
 using System.Runtime.Serialization.Plists;
+using System.Reflection;
 
 namespace WechatExport
 {
@@ -16,10 +18,53 @@ namespace WechatExport
         public Dictionary<string, string> fileDict = null;
         private string currentBackup;
         private List<MBFileRecord> files92;
+        private Dictionary<string, string> templates;
+
         public WeChatInterface(string currentBackup, List<MBFileRecord> files92)
         {
             this.currentBackup = currentBackup;
             this.files92 = files92;
+            this.templates = new Dictionary<string, string>();
+
+            loadTemplates();
+        }
+
+        private string getTemplate(string name)
+        {
+            return this.templates.ContainsKey(name) ? this.templates[name] : @"";
+        }
+
+        private void loadTemplates()
+        {
+            this.templates.Add("frame", loadTemplate("frame.html"));
+            this.templates.Add("msg", loadTemplate("msg.html"));
+            this.templates.Add("video", loadTemplate("video.html"));
+            this.templates.Add("notice", loadTemplate("notice.html"));
+            this.templates.Add("audio", loadTemplate("audio.html"));
+            this.templates.Add("image", loadTemplate("image.html"));
+            this.templates.Add("card", loadTemplate("card.html"));
+            this.templates.Add("emoji", loadTemplate("emoji.html"));
+            this.templates.Add("share", loadTemplate("share.html"));
+        }
+
+        private string loadTemplate(string name)
+        {
+            // Determine path
+            var assembly = Assembly.GetExecutingAssembly();
+            string codeBase = assembly.CodeBase;
+            UriBuilder uri = new UriBuilder(codeBase);
+            string path = Uri.UnescapeDataString(uri.Path);
+            path = Path.GetDirectoryName(path);
+
+            string resourcePath = Path.Combine(path, "res");
+            resourcePath = Path.Combine(resourcePath, "templates");
+            resourcePath = Path.Combine(resourcePath, name);
+
+            if (File.Exists(resourcePath))
+            {
+                return System.IO.File.ReadAllText(resourcePath);
+            }
+            return "";
         }
 
         public bool OpenMMSqlite(string userBase, out SQLiteConnection conn)
@@ -287,7 +332,7 @@ namespace WechatExport
                                 }
                                 if (type == 34) message = "[语音]";
                                 else if (type == 47) message = "[表情]";
-                                else if (type == 62) message = "[小视频]";
+                                else if (type == 62 || type == 43) message = "[小视频]";
                                 else if (type == 50) message = "[视频/语音通话]";
                                 else if (type == 3) message = "[图片]";
                                 else if (type == 48) message = "[位置]";
@@ -333,166 +378,286 @@ namespace WechatExport
                     {
                         var assetsdir = Path.Combine(path, id + "_files");
                         Directory.CreateDirectory(assetsdir);
-                        using (var sw = new StreamWriter(Path.Combine(path, id + ".html")))
-                        {
-                            sw.WriteLine(@"<!DOCTYPE html PUBLIC ""-//W3C//DTD XHTML 1.0 Transitional//EN"" ""http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"">");
-                            sw.WriteLine(@"<html xmlns=""http://www.w3.org/1999/xhtml""><head><meta http-equiv=""Content-Type"" content=""text/html; charset=utf-8"" /><title>" + displayname + " - 微信聊天记录</title></head>");
-                            sw.WriteLine(@"<body><table width=""600"" border=""0"" style=""font-size:12px;border-collapse:separate;border-spacing:0px 20px;word-break:break-all;table-layout:fixed;word-wrap:break-word;"" align=""center"">");
-                            while (reader.Read())
-                                try
+                        // var senderTemplate = @"<div class=""chat-receiver""><div><img src=""%%AVATAR%%"" width=""50"" height=""50""></div><div>%%TIME%% %%NAME%%</div><div><div class=""chat-right_triangle""></div><span>%%MESSAGE%%</span></div></div>";
+                        // var receiverTemplate = @"<div class=""chat-sender""><div><img src=""%%AVATAR%%""/></div><div>%%NAME%% %%TIME%%</div><div><div class=""chat-left_triangle""></div><span>%%MESSAGE%%</span></div></div>";
+
+                        StringBuilder sb = new StringBuilder(4096);
+                        Dictionary<string, string> templateValues = new Dictionary<string, string>(8);
+                        string templateKey = "msg";
+                        // sw.WriteLine(@"<!doctype html>");
+                        // sw.WriteLine(@"<html><meta charset=""utf-8""><meta name=""viewport"" content=""width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover""><meta name=""apple-mobile-web-app-capable"" content=""yes""><meta content=""yes"" name=""apple-touch-fullscreen""><link href=""../../styles/style.css"" rel=""stylesheet"" type=""text/css""><title>" + displayname + " - 微信聊天记录</title></head>");
+                        // sw.WriteLine(@"<body>");
+                        while (reader.Read())
+                            try
+                            {
+                                var unixtime = reader.GetInt32(0);
+                                var message = reader.GetString(1);
+                                var des = reader.GetInt32(2);
+                                var type = reader.GetInt32(3);
+                                var msgid = reader.GetInt32(4);
+
+                                templateValues.Clear();
+                                templateKey = "msg";
+
+                                var ts = "";
+                                if (type == 10000)
                                 {
-                                    var unixtime = reader.GetInt32(0);
-                                    var message = reader.GetString(1);
-                                    var des = reader.GetInt32(2);
-                                    var type = reader.GetInt32(3);
-                                    var msgid = reader.GetInt32(4);
-                                    if (type == 10000)
+                                    ts = getTemplate("notice");
+                                    ts = ts.Replace("%%MESSAGE%%", message);
+                                    sb.Append(ts);
+                                    // sw.WriteLine(@"<div class=""chat-notice""><span>系统消息: " + message + @"</span></div>");
+                                    continue;
+                                }
+                                
+                                if (id.EndsWith("@chatroom"))
+                                {
+                                    if (des == 0)
                                     {
-                                        sw.WriteLine(@"<tr><td width=""80"">&nbsp;</td><td width=""100"">&nbsp;</td><td>系统消息: " + message + @"</td></tr>");
-                                        continue;
-                                    }
-                                    var ts = "";
-                                    if (id.EndsWith("@chatroom"))
-                                    {
-                                        if (des == 0)
-                                        {
-                                            var txtsender = myself.DisplayName();
-                                            if (chatremark.ContainsKeySafe(myself.UsrName)) txtsender = chatremark[myself.UsrName];
-                                            else if (chatremark.ContainsKeySafe(myself.alias)) txtsender = chatremark[myself.alias];
-                                            ts += @"<tr><td width=""80"" align=""center""><img src=""Portrait/" + myself.FindPortrait() + @""" width=""50"" height=""50"" /><br />" + txtsender + @"</td>";
-                                        }
-                                        else
-                                        {
-                                            var enter = message.IndexOf(":\n");
-                                            if (enter > 0 && enter + 2 < message.Length)
-                                            {
-                                                var txtsender = message.Substring(0, enter);
-                                                var senderid = txtsender;
-                                                message = message.Substring(enter + 2);
-                                                if (chatremark.ContainsKeySafe(txtsender)) txtsender = chatremark[txtsender];
-                                                else if (friends.ContainsKeySafe(txtsender)) txtsender = friends[txtsender].DisplayName();
-                                                if (friends.ContainsKeySafe(senderid)) ts += @"<tr><td width=""80"" align=""center""><img src=""Portrait/" + friends[senderid].FindPortrait() + @""" width=""50"" height=""50"" /><br />" + txtsender + @"</td>";
-                                                else ts += @"<tr><td width=""80"" align=""center""><img src=""Portrait/DefaultProfileHead@2x.png"" width=""50"" height=""50"" /><br />" + txtsender + @"</td>";
-                                            }
-                                            else ts += @"<tr><td width=""80"" align=""center"">&nbsp;</td>";
-                                        }
+                                        var txtsender = myself.DisplayName();
+                                        if (chatremark.ContainsKeySafe(myself.UsrName)) txtsender = chatremark[myself.UsrName];
+                                        else if (chatremark.ContainsKeySafe(myself.alias)) txtsender = chatremark[myself.alias];
+                                        // ts += @"<tr><td width=""80"" align=""center""><img src=""Portrait/" + myself.FindPortrait() + @""" width=""50"" height=""50"" /><br />" + txtsender + @"</td>";
+                                        templateValues["%%ALIGNMENT%%"] = "right";
+                                        // templateValues.Add("%%NAME%%", txtsender);
+                                        templateValues["%%NAME%%"] = "";
+                                        templateValues["%%AVATAR%%"] = "Portrait/" + myself.FindPortrait();
                                     }
                                     else
                                     {
-                                        if (des == 0) ts += @"<tr><td width=""80"" align=""center""><img src=""Portrait/" + myself.FindPortrait() + @""" width=""50"" height=""50"" /><br />" + myself.DisplayName() + @"</td>";
-                                        else if (friend != null) ts += @"<tr><td width=""80"" align=""center""><img src=""Portrait/" + friend.FindPortrait() + @""" width=""50"" height=""50"" /><br />" + friend.DisplayName() + @"</td>";
-                                        else ts += @"<tr><td width=""80"" align=""center""><img src=""Portrait/DefaultProfileHead@2x.png"" width=""50"" height=""50"" /><br />" + displayname + @"</td>";
-                                    }
-                                    if (type == 34)
-                                    {
-                                        var voicelen = -1;
-                                        var match = Regex.Match(message, @"voicelength=""(\d+?)""");
-                                        if (match.Success) voicelen = int.Parse(match.Groups[1].Value);
-                                        var audiosrc = GetBackupFilePath(MyPath.Combine(userBase, "Audio", table, msgid + ".aud"));
-                                        if (audiosrc == null)
+                                        templateValues["%%ALIGNMENT%%"] = "left";
+                                        var enter = message.IndexOf(":\n");
+                                        if (enter > 0 && enter + 2 < message.Length)
                                         {
-                                            message = voicelen == -1 ? "[语音]" : "[语音 " + DisplayTime(voicelen) + "]";
-                                        }
-                                        else
-                                        {
-                                            ShellWait("lib\\silk_v3_decoder.exe", "\"" + audiosrc + "\" 1.pcm");
-                                            ShellWait("lib\\lame.exe", "-r -s 24000 --preset voice 1.pcm \"" + Path.Combine(assetsdir, msgid + ".mp3") + "\"");
-                                            message = "<audio controls><source src=\"" + id + "_files/" + msgid + ".mp3\" type=\"audio/mpeg\"><a href=\"" + id + "_files/" + msgid + ".mp3\">播放</a></audio>";
-                                        }
-                                    }
-                                    else if (type == 47)
-                                    {
-                                        var match = Regex.Match(message, @"cdnurl ?= ?""(.+?)""");
-                                        if (match.Success)
-                                        {
-                                            var localfile = RemoveCdata(match.Groups[1].Value);
-                                            var match2 = Regex.Match(localfile, @"\/(\w+?)\/\w*$");
-                                            if (!match2.Success) localfile = RandomString(10);
-                                            else localfile = match2.Groups[1].Value;
-                                            emojidown.Add(new DownloadTask() { url = match.Groups[1].Value, filename = localfile + ".gif" });
-                                            message = "<img src=\"Emoji/" + localfile + ".gif\" style=\"max-width:100px;max-height:60px\" />";
-                                        }
-                                        else message = "[表情]";
-                                    }
-                                    else if (type == 62)
-                                    {
-                                        var hasthum = RequireResource(MyPath.Combine(userBase, "Video", table, msgid + ".video_thum"), Path.Combine(assetsdir, msgid + "_thum.jpg"));
-                                        var hasvid = RequireResource(MyPath.Combine(userBase, "Video", table, msgid + ".mp4"), Path.Combine(assetsdir, msgid + ".mp4"));
-                                        if (hasthum && hasvid) message = "<video controls poster=\"" + id + "_files/" + msgid + "_thum.jpg\"><source src=\"" + id + "_files/" + msgid + ".mp4\" type=\"video/mp4\"><a href=\"" + id + "_files/" + msgid + ".mp4\">播放</a></video>";
-                                        else if (hasthum) message = "<img src=\"" + id + "_files/" + msgid + "_thum.jpg\" /> （视频丢失）";
-                                        else if (hasvid) message = "<video controls><source src=\"" + id + "_files/" + msgid + ".mp4\" type=\"video/mp4\"><a href=\"" + id + "_files/" + msgid + ".mp4\">播放</a></video>";
-                                        else message = "[视频]";
-                                    }
-                                    else if (type == 50) message = "[视频/语音通话]";
-                                    else if (type == 43)
-                                    {
-                                        var hasthum = RequireResource(MyPath.Combine(userBase, "Video", table, msgid + ".video_thum"), Path.Combine(assetsdir, msgid + "_thum.jpg"));
-                                        var hasvid = RequireResource(MyPath.Combine(userBase, "Video", table, msgid + ".mp4"), Path.Combine(assetsdir, msgid + ".mp4"));
-                                        if (hasthum && hasvid) message = "<video controls poster=\"" + id + "_files/" + msgid + "_thum.jpg\"><source src=\"" + id + "_files/" + msgid + ".mp4\" type=\"video/mp4\"><a href=\"" + id + "_files/" + msgid + ".mp4\">播放</a></video>";
-                                        else if (hasthum) message = "<img src=\"" + id + "_files/" + msgid + "_thum.jpg\" /> （视频丢失）";
-                                        else if (hasvid) message = "<video controls><source src=\"" + id + "_files/" + msgid + ".mp4\" type=\"video/mp4\"><a href=\"" + id + "_files/" + msgid + ".mp4\">播放</a></video>";
-                                        else message = "[视频]";
-                                    }
-                                    else if (type == 3)
-                                    {
-                                        var hasthum = RequireResource(MyPath.Combine(userBase, "Img", table, msgid + ".pic_thum"), Path.Combine(assetsdir, msgid + "_thum.jpg"));
-                                        var haspic = RequireResource(MyPath.Combine(userBase, "Img", table, msgid + ".pic"), Path.Combine(assetsdir, msgid + ".jpg"));
-                                        if (hasthum && haspic) message = "<a href=\"" + id + "_files/" + msgid + ".jpg\"><img src=\"" + id + "_files/" + msgid + "_thum.jpg\" style=\"max-width:100px;max-height:60px\" /></a>";
-                                        else if (hasthum) message = "<img src=\"" + id + "_files/" + msgid + "_thum.jpg\" style=\"max-width:100px;max-height:60px\" />";
-                                        else if (haspic) message = "<img src=\"" + id + "_files/" + msgid + ".jpg\" style=\"max-width:100px;max-height:60px\" />";
-                                        else message = "[图片]";
-                                    }
-                                    else if (type == 48)
-                                    {
-                                        var match1 = Regex.Match(message, @"x ?= ?""(.+?)""");
-                                        var match2 = Regex.Match(message, @"y ?= ?""(.+?)""");
-                                        var match3 = Regex.Match(message, @"label ?= ?""(.+?)""");
-                                        if (match1.Success && match2.Success && match3.Success) message = "[位置 (" + RemoveCdata(match2.Groups[1].Value) + "," + RemoveCdata(match1.Groups[1].Value) + ") " + RemoveCdata(match3.Groups[1].Value) + "]";
-                                        else message = "[位置]";
-                                    }
-                                    else if (type == 49)
-                                    {
-                                        if (message.Contains("<type>2001<")) message = "[红包]";
-                                        else if (message.Contains("<type>2000<")) message = "[转账]";
-                                        else if (message.Contains("<type>17<")) message = "[实时位置共享]";
-                                        else if (message.Contains("<type>6<")) message = "[文件]";
-                                        else
-                                        {
-                                            var match1 = Regex.Match(message, @"<title>(.+?)<\/title>");
-                                            var match2 = Regex.Match(message, @"<des>(.*?)<\/des>");
-                                            var match3 = Regex.Match(message, @"<url>(.+?)<\/url>");
-                                            var match4 = Regex.Match(message, @"<thumburl>(.+?)<\/thumburl>");
-                                            if (match1.Success && match3.Success)
-                                            {
-                                                message = "";
-                                                if (match4.Success) message += "<img src=\"" + RemoveCdata(match4.Groups[1].Value) + "\" style=\"float:left;max-width:100px;max-height:60px\" />";
-                                                message += "<a href=\"" + RemoveCdata(match3.Groups[1].Value) + "\"><b>" + RemoveCdata(match1.Groups[1].Value) + "</b></a>";
-                                                if (match2.Success) message += "<br />" + RemoveCdata(match2.Groups[1].Value);
-                                            }
-                                            else message = "[链接]";
-                                        }
-                                    }
-                                    else if (type == 42)
-                                    {
-                                        var match1 = Regex.Match(message, "nickname ?= ?\"(.+?)\"");
-                                        var match2 = Regex.Match(message, "smallheadimgurl ?= ?\"(.+?)\"");
-                                        if (match1.Success)
-                                        {
-                                            message = "";
-                                            if (match2.Success) message += "<img src=\"" + RemoveCdata(match2.Groups[1].Value) + "\" style=\"float:left;max-width:100px;max-height:60px\" />";
-                                            message += "[名片] " + RemoveCdata(match1.Groups[1].Value);
-                                        }
-                                        else message = "[名片]";
-                                    }
-                                    else message = SafeHTML(message);
+                                            var txtsender = message.Substring(0, enter);
+                                            var senderid = txtsender;
+                                            message = message.Substring(enter + 2);
+                                            if (chatremark.ContainsKeySafe(txtsender)) txtsender = chatremark[txtsender];
+                                            else if (friends.ContainsKeySafe(txtsender)) txtsender = friends[txtsender].DisplayName();
 
-                                    ts += @"<td width=""100"" align=""center"">" + FromUnixTime(unixtime).ToLocalTime().ToString().Replace(" ","<br />") + "</td>";
-                                    ts += @"<td>" + message + @"</td></tr>";
-                                    sw.WriteLine(ts);
-                                    count++;
+                                            // if (friends.ContainsKeySafe(senderid)) ts += @"<tr><td width=""80"" align=""center""><img src=""Portrait/" + friends[senderid].FindPortrait() + @""" width=""50"" height=""50"" /><br />" + txtsender + @"</td>";
+                                            // else ts += @"<tr><td width=""80"" align=""center""><img src=""Portrait/DefaultProfileHead@2x.png"" width=""50"" height=""50"" /><br />" + txtsender + @"</td>";
+                                            templateValues["%%NAME%%"] = txtsender;
+                                            templateValues["%%AVATAR%%"] = friends.ContainsKeySafe(senderid) ? ("Portrait/" + friends[senderid].FindPortrait()) : "Portrait/DefaultProfileHead@2x.png";
+                                        }
+                                        else
+                                        {
+                                            // ts = getTemplate("msg_friend");
+                                            templateValues["%%NAME%%"] = "";
+                                            templateValues["%%AVATAR%%"] = "";
+                                        }
+                                    }
                                 }
-                                catch (Exception) { }
-                            sw.WriteLine(@"</body></html>");
+                                else
+                                {
+                                    if (des == 0)
+                                    {
+                                        // ts += @"<tr><td width=""80"" align=""center""><img src=""Portrait/" + myself.FindPortrait() + @""" width=""50"" height=""50"" /><br />" + myself.DisplayName() + @"</td>";
+                                        // ts = getTemplate("msg_me");
+                                        // templateValues.Add("%%NAME%%", myself.DisplayName());
+                                        templateValues["%%ALIGNMENT%%"] = "right";
+                                        templateValues["%%NAME%%"] = "";
+                                        templateValues["%%AVATAR%%"] = "Portrait/" + myself.FindPortrait();
+                                    }
+                                    else if (friend != null)
+                                    {
+                                        templateValues["%%ALIGNMENT%%"] = "left";
+                                        templateValues["%%NAME%%"] = friend.DisplayName();
+                                        templateValues["%%AVATAR%%"] = "Portrait/" + friend.FindPortrait();
+                                    }
+
+                                    else
+                                    {
+                                        // ts += @"<tr><td width=""80"" align=""center""><img src=""Portrait/DefaultProfileHead@2x.png"" width=""50"" height=""50"" /><br />" + displayname + @"</td>";
+                                        // ts = getTemplate("msg_friend");
+                                        templateValues["%%ALIGNMENT%%"] = "left";
+                                        templateValues["%%NAME%%"] = displayname;
+                                        templateValues["%%AVATAR%%"] = "Portrait/DefaultProfileHead@2x.png";
+                                    }
+                                }
+                                if (type == 34)
+                                {
+                                    var voicelen = -1;
+                                    var match = Regex.Match(message, @"voicelength=""(\d+?)""");
+                                    if (match.Success) voicelen = int.Parse(match.Groups[1].Value);
+                                    var audiosrc = GetBackupFilePath(MyPath.Combine(userBase, "Audio", table, msgid + ".aud"));
+                                    if (audiosrc == null)
+                                    {
+                                        templateKey = "msg";
+                                        // message = voicelen == -1 ? "[语音]" : "[语音 " + DisplayTime(voicelen) + "]";
+                                        templateValues["%%MESSAGE%%"] = voicelen == -1 ? "[语音]" : "[语音 " + DisplayTime(voicelen) + "]";
+                                    }
+                                    else
+                                    {
+                                        ShellWait("lib\\silk_v3_decoder.exe", "\"" + audiosrc + "\" 1.pcm");
+                                        ShellWait("lib\\lame.exe", "-r -s 24000 --preset voice 1.pcm \"" + Path.Combine(assetsdir, msgid + ".mp3") + "\"");
+                                        templateKey = "audio";
+                                        // message = "<audio controls><source src=\"" + id + "_files/" + msgid + ".mp3\" type=\"audio/mpeg\"><a href=\"" + id + "_files/" + msgid + ".mp3\">播放</a></audio>";
+                                        templateValues["%%AUDIOPATH%%"] = id + "_files/" + msgid + ".mp3";
+                                    }
+                                }
+                                else if (type == 47)
+                                {
+                                    var match = Regex.Match(message, @"cdnurl ?= ?""(.+?)""");
+                                    if (match.Success)
+                                    {
+                                        var localfile = RemoveCdata(match.Groups[1].Value);
+                                        var match2 = Regex.Match(localfile, @"\/(\w+?)\/\w*$");
+                                        if (!match2.Success) localfile = RandomString(10);
+                                        else localfile = match2.Groups[1].Value;
+                                        emojidown.Add(new DownloadTask() { url = match.Groups[1].Value, filename = localfile + ".gif" });
+                                        // message = "<img src=\"Emoji/" + localfile + ".gif\" style=\"max-width:100px;max-height:60px\" />";
+                                        templateKey = "emoji";
+                                        // message = "[表情]";
+                                        templateValues["%%EMOJIPATH%%"] = "Emoji/" + localfile + ".gif";
+                                    }
+                                    else
+                                    {
+                                        templateKey = "msg";
+                                        // message = "[表情]";
+                                        templateValues.Add("%%MESSAGE%%", "[表情]");
+                                    }
+                                }
+                                else if (type == 62 || type == 43)
+                                {
+                                    var hasthum = RequireResource(MyPath.Combine(userBase, "Video", table, msgid + ".video_thum"), Path.Combine(assetsdir, msgid + "_thum.jpg"));
+                                    var hasvid = RequireResource(MyPath.Combine(userBase, "Video", table, msgid + ".mp4"), Path.Combine(assetsdir, msgid + ".mp4"));
+
+                                    var thumbPath = "";
+                                    var videoPath = "";
+                                    if (hasthum) thumbPath = id + "_files/" + msgid + "_thum.jpg";
+
+                                    if (hasthum && hasvid) message = "<video controls poster=\"" + id + "_files/" + msgid + "_thum.jpg\"><source src=\"" + id + "_files/" + msgid + ".mp4\" type=\"video/mp4\"><a href=\"" + id + "_files/" + msgid + ".mp4\">播放</a></video>";
+                                    else if (hasthum) message = "<img src=\"" + id + "_files/" + msgid + "_thum.jpg\" /> （视频丢失）";
+                                    else if (hasvid) message = "<video controls><source src=\"" + id + "_files/" + msgid + ".mp4\" type=\"video/mp4\"><a href=\"" + id + "_files/" + msgid + ".mp4\">播放</a></video>";
+                                    else message = "[视频]";
+                                }
+                                else if (type == 50)
+                                {
+                                    templateKey = "msg";
+                                    templateValues["%%MESSAGE%%"] = "[视频/语音通话]";
+                                    // message = "[视频/语音通话]";
+                                }
+                                else if (type == 3)
+                                {
+                                    var hasthum = RequireResource(MyPath.Combine(userBase, "Img", table, msgid + ".pic_thum"), Path.Combine(assetsdir, msgid + "_thum.jpg"));
+                                    var haspic = RequireResource(MyPath.Combine(userBase, "Img", table, msgid + ".pic"), Path.Combine(assetsdir, msgid + ".jpg"));
+                                    if (hasthum && haspic) message = "<a href=\"" + id + "_files/" + msgid + ".jpg\"><img src=\"" + id + "_files/" + msgid + "_thum.jpg\" class=\"image\" /></a>";
+                                    else if (hasthum) message = "<img src=\"" + id + "_files/" + msgid + "_thum.jpg\" class=\"image img_only_thumb\" />";
+                                    else if (haspic) message = "<img src=\"" + id + "_files/" + msgid + ".jpg\" class=\"image\" />";
+                                    else message = "[图片]";
+
+                                    if (hasthum || haspic)
+                                    {
+                                        templateKey = "image";
+                                        templateValues["%%IMGPATH%%"] = haspic ? (id + "_files/" + msgid + ".jpg") : "";
+                                        templateValues["%%IMGTHUMBPATH%%"] = hasthum ? (id + "_files/" + msgid + "_thum.jpg") : "";
+                                    }
+                                    else
+                                    {
+                                        templateKey = "msg";
+                                        templateValues["%%MESSAGE%%"] = "[图片]";
+                                    }
+
+                                }
+                                else if (type == 48)
+                                {
+                                    var match1 = Regex.Match(message, @"x ?= ?""(.+?)""");
+                                    var match2 = Regex.Match(message, @"y ?= ?""(.+?)""");
+                                    var match3 = Regex.Match(message, @"label ?= ?""(.+?)""");
+                                    if (match1.Success && match2.Success && match3.Success) message = "[位置 (" + RemoveCdata(match2.Groups[1].Value) + "," + RemoveCdata(match1.Groups[1].Value) + ") " + RemoveCdata(match3.Groups[1].Value) + "]";
+                                    else message = "[位置]";
+
+                                    templateKey = "msg";
+                                    templateValues.Add("%%MESSAGE%%", message);
+                                }
+                                else if (type == 49)
+                                {
+                                    if (message.Contains("<type>2001<")) templateValues.Add("%%MESSAGE%%", "[红包]");
+                                    else if (message.Contains("<type>2000<")) templateValues.Add("%%MESSAGE%%", "[转账]");
+                                    else if (message.Contains("<type>17<")) templateValues.Add("%%MESSAGE%%", "[实时位置共享]");
+                                    else if (message.Contains("<type>6<")) templateValues.Add("%%MESSAGE%%", "[文件]");
+                                    else
+                                    {
+                                        var match1 = Regex.Match(message, @"<title>(.+?)<\/title>");
+                                        var match2 = Regex.Match(message, @"<des>(.*?)<\/des>");
+                                        var match3 = Regex.Match(message, @"<url>(.+?)<\/url>");
+                                        var match4 = Regex.Match(message, @"<thumburl>(.+?)<\/thumburl>");
+                                        if (match1.Success && match3.Success)
+                                        {
+                                            templateKey = "share";
+
+                                            //  < img src = "%%LINKIMGPATH%%" style = "float:left;max-width:100px;max-height:60px" />
+
+                                            //  < a href = "LINKURL" >< b >%% LINKTITLE %%</ b ></ a >
+
+                                            templateValues["%%SHARINGIMGPATH%%"] = "";
+                                            templateValues["%%SHARINGURL%%"] = RemoveCdata(match3.Groups[1].Value);
+                                            templateValues["%%SHARINGTITLE%%"] = RemoveCdata(match1.Groups[1].Value);
+                                            templateValues["%%MESSAGE%%"] = "";
+
+                                            if (match4.Success)
+                                            {
+                                                templateValues["%%SHARINGIMGPATH%%"] = RemoveCdata(match4.Groups[1].Value);
+                                                // message += "<img src=\"" + RemoveCdata(match4.Groups[1].Value) + "\" style=\"float:left;max-width:100px;max-height:60px\" />";
+                                            }
+                                            // message += "<a href=\"" + RemoveCdata(match3.Groups[1].Value) + "\"><b>" + RemoveCdata(match1.Groups[1].Value) + "</b></a>";
+                                            if (match2.Success)
+                                            {
+                                                // message += "<br />" + RemoveCdata(match2.Groups[1].Value);
+                                                templateValues["%%MESSAGE%%"] = RemoveCdata(match2.Groups[1].Value);
+                                            }
+                                        }
+                                        else templateValues["%%MESSAGE%%"] = "[链接]";
+                                    }
+                                }
+                                else if (type == 42)
+                                {
+                                    var match1 = Regex.Match(message, "nickname ?= ?\"(.+?)\"");
+                                    var match2 = Regex.Match(message, "smallheadimgurl ?= ?\"(.+?)\"");
+                                    if (match1.Success)
+                                    {
+                                        message = "";
+                                        if (match2.Success) message += "<img src=\"" + RemoveCdata(match2.Groups[1].Value) + "\" style=\"float:left;max-width:100px;max-height:60px\" />";
+                                        message += "[名片] " + RemoveCdata(match1.Groups[1].Value);
+
+                                        templateKey = "card";
+                                        templateValues["%%CARDIMGPATH%%"] = (match2.Success) ? RemoveCdata(match2.Groups[1].Value) : "";
+                                        templateValues["%%CARDNAME%%"] = RemoveCdata(match1.Groups[1].Value);
+                                    }
+                                    else templateValues["%%MESSAGE%%"] = "[名片]";
+                                }
+                                else
+                                {
+                                    templateValues["%%MESSAGE%%"] = SafeHTML(message);
+                                }
+
+                                templateValues.Add("%%TIME%%", FromUnixTime(unixtime).ToLocalTime().ToString().Replace(" ", "&nbsp;"));
+                                ts = getTemplate(templateKey);
+                                foreach (KeyValuePair<string, string> entry in templateValues)
+                                {
+                                    ts = ts.Replace(entry.Key, entry.Value);
+                                }
+
+                                // ts = ts.Replace(@"%%TIME%%", FromUnixTime(unixtime).ToLocalTime().ToString().Replace(" ", "&nbsp;"));
+                                // ts = ts.Replace(@"%%MESSAGE%%", message);
+                                // ts += @"<td width=""100"" align=""center"">" + FromUnixTime(unixtime).ToLocalTime().ToString().Replace(" ","<br />") + "</td>";
+                                // ts += @"<td>" + message + @"</td></tr>";
+                                // sw.WriteLine(ts);
+                                sb.AppendLine(ts);
+                                count++;
+                            }
+                            catch (Exception)
+                            {
+                            }
+
+
+                        string html = this.getTemplate(@"frame");
+                        html = html.Replace(@"%%DISPLAYNAME%%", displayname);
+                        html = html.Replace(@"%%BODY%%", sb.ToString());
+                        
+                        using (var sw = new StreamWriter(Path.Combine(path, id + ".html")))
+                        {
+                            sw.Write(html);
                         }
                     }
                 }
@@ -507,7 +672,7 @@ namespace WechatExport
             using(var sw=new StreamWriter(path))
             {
                 sw.WriteLine(@"<!DOCTYPE html PUBLIC ""-//W3C//DTD XHTML 1.0 Transitional//EN"" ""http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"">");
-                sw.WriteLine(@"<html xmlns=""http://www.w3.org/1999/xhtml""><head><meta http-equiv=""Content-Type"" content=""text/html; charset=utf-8"" /><title>微信聊天记录</title></head>");
+                sw.WriteLine(@"<html xmlns=""http://www.w3.org/1999/xhtml""><head><meta http-equiv=""Content-Type"" content=""text/html; charset=utf-8"" /><meta name=""viewport"" content=""width=device-width, initial-scale=1"" /><meta name=""apple-mobile-web-app-capable"" content=""yes"" /><link href=""../styles/style.css"" rel=""stylesheet"" type=""text/css""><title>微信聊天记录</title></head>");
                 sw.WriteLine(@"<body><table width=""400"" border=""0"" style=""font-size:12px;border-collapse:separate;border-spacing:0px 20px;word-break:break-all;table-layout:fixed;word-wrap:break-word;"" align=""center"">");
                 foreach (var item in list)
                 {

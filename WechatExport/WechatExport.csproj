@@ -137,6 +137,7 @@
     <Content Include="res\templates\share.html">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <Content Include="res\templates\thumb.html" />
     <Content Include="res\templates\video.html">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>

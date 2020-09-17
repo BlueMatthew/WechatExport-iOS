@@ -52,6 +52,7 @@ namespace WechatExport
             this.templates.Add("card", loadTemplate("card.html"));
             this.templates.Add("emoji", loadTemplate("emoji.html"));
             this.templates.Add("share", loadTemplate("share.html"));
+            this.templates.Add("thumb", loadTemplate("thumb.html"));
         }
 
         private string loadTemplate(string name)
@@ -471,7 +472,6 @@ namespace WechatExport
                                         templateValues["%%NAME%%"] = friend.DisplayName();
                                         templateValues["%%AVATAR%%"] = "Portrait/" + friend.FindPortrait();
                                     }
-
                                     else
                                     {
                                         // ts += @"<tr><td width=""80"" align=""center""><img src=""Portrait/DefaultProfileHead@2x.png"" width=""50"" height=""50"" /><br />" + displayname + @"</td>";
@@ -537,6 +537,25 @@ namespace WechatExport
                                     else if (hasthum) message = "<img src=\"" + id + "_files/" + msgid + "_thum.jpg\" /> （视频丢失）";
                                     else if (hasvid) message = "<video controls><source src=\"" + id + "_files/" + msgid + ".mp4\" type=\"video/mp4\"><a href=\"" + id + "_files/" + msgid + ".mp4\">播放</a></video>";
                                     else message = "[视频]";
+
+                                    if (hasvid)
+                                    {
+                                        templateKey = "video";
+                                        templateValues["%%THUMBPATH%%"] = hasthum ? (id + "_files/" + msgid + "_thum.jpg") : "";
+                                        templateValues["%%VIDEOPATH%%"] = hasthum ? (id + "_files/" + msgid + ".mp4") : "";
+                                    }
+                                    else if (hasthum)
+                                    {
+                                        templateKey = "thumb";
+                                        templateValues["%%IMGTHUMBPATH%%"] = hasthum ? (id + "_files/" + msgid + "_thum.jpg") : "";
+                                        templateValues["%%MESSAGE%%"] = "（视频丢失）";
+                                    }
+                                    else
+                                    {
+                                        templateKey = "msg";
+                                        templateValues["%%MESSAGE%%"] = "[视频]";
+                                    }
+                                    
                                 }
                                 else if (type == 50)
                                 {
@@ -548,16 +567,22 @@ namespace WechatExport
                                 {
                                     var hasthum = RequireResource(MyPath.Combine(userBase, "Img", table, msgid + ".pic_thum"), Path.Combine(assetsdir, msgid + "_thum.jpg"));
                                     var haspic = RequireResource(MyPath.Combine(userBase, "Img", table, msgid + ".pic"), Path.Combine(assetsdir, msgid + ".jpg"));
-                                    if (hasthum && haspic) message = "<a href=\"" + id + "_files/" + msgid + ".jpg\"><img src=\"" + id + "_files/" + msgid + "_thum.jpg\" class=\"image\" /></a>";
-                                    else if (hasthum) message = "<img src=\"" + id + "_files/" + msgid + "_thum.jpg\" class=\"image img_only_thumb\" />";
-                                    else if (haspic) message = "<img src=\"" + id + "_files/" + msgid + ".jpg\" class=\"image\" />";
-                                    else message = "[图片]";
+                                    // if (hasthum && haspic) message = "<a href=\"" + id + "_files/" + msgid + ".jpg\"><img src=\"" + id + "_files/" + msgid + "_thum.jpg\" class=\"image\" /></a>";
+                                    // else if (hasthum) message = "<img src=\"" + id + "_files/" + msgid + "_thum.jpg\" class=\"image img_only_thumb\" />";
+                                    // else if (haspic) message = "<img src=\"" + id + "_files/" + msgid + ".jpg\" class=\"image\" />";
+                                    // else message = "[图片]";
 
-                                    if (hasthum || haspic)
+                                    if (haspic)
                                     {
                                         templateKey = "image";
-                                        templateValues["%%IMGPATH%%"] = haspic ? (id + "_files/" + msgid + ".jpg") : "";
+                                        templateValues["%%IMGPATH%%"] = id + "_files/" + msgid + ".jpg";
+                                        templateValues["%%IMGTHUMBPATH%%"] = hasthum ? (id + "_files/" + msgid + "_thum.jpg") : (id + "_files/" + msgid + ".jpg");
+                                    }
+                                    else if (hasthum)
+                                    {
+                                        templateKey = "thumb";
                                         templateValues["%%IMGTHUMBPATH%%"] = hasthum ? (id + "_files/" + msgid + "_thum.jpg") : "";
+                                        templateValues["%%MESSAGE%%"] = "";
                                     }
                                     else
                                     {

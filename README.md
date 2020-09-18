@@ -10,4 +10,4 @@ The only open-source one-click application that parses the local database of Wec
 ---
 
 Download latest stable binary here: 在这里下载最新的打包好的程序：
-https://github.com/tiancaihb/WechatExport-iOS/releases/latest
+https://github.com/BlueMatthew/WechatExport-iOS/releases/download/1.1.0/release-1.1.0.zip

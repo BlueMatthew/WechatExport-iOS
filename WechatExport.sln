@@ -34,4 +34,9 @@ Global
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {E013C296-5F0B-4807-91AE-2548F61DAD53}
 	EndGlobalSection
+	GlobalSection(MonoDevelopProperties) = preSolution
+		Policies = $0
+		$0.VersionControlPolicy = $1
+		version = 1.3.0
+	EndGlobalSection
 EndGlobal

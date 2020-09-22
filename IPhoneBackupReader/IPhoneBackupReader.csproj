@@ -2,6 +2,7 @@
 
   <PropertyGroup>
     <TargetFramework>netstandard20</TargetFramework>
+    <ReleaseVersion>1.3.0</ReleaseVersion>
   </PropertyGroup>
 
   <ItemGroup>

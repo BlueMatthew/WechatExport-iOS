@@ -182,9 +182,7 @@ namespace WechatExport
                     {
                         File.Copy(Path.Combine("res", "DefaultProfileHead@2x.png"), Path.Combine(portraitdir, "DefaultProfileHead@2x.png"), true);
                     }
-                    catch (Exception ex) {
-                        int aa = 0;
-                    }
+                    catch (Exception) { }
                 }
                 var emojidir = Path.Combine(userSaveBase, "Emoji");
                 Directory.CreateDirectory(emojidir);
@@ -243,12 +241,12 @@ namespace WechatExport
                     }
                 }
             }
-            catch (InvalidOperationException ex)
+            catch (InvalidOperationException)
             {
                 // MessageBox.Show(ex.InnerException.ToString());
                 backup = null;
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 // MessageBox.Show(ex.ToString());
                 backup = null;
@@ -338,7 +336,7 @@ namespace WechatExport
             }
             catch (Exception)
             {
-                int aa = 0;
+                
             }
             return succ;
         }
@@ -358,7 +356,7 @@ namespace WechatExport
             }
             catch (Exception)
             {
-                int aa = 0;
+                
             }
             return succ;
         }
@@ -468,17 +466,17 @@ namespace WechatExport
 
                             byte[] headHDImgUrl = Encoding.UTF8.GetBytes("headhdimgurl");
                             friend.PortraitHD = GetStringFromMMSetting(data, headHDImgUrl);
+
+                            succ = true;
                         }
                     }
                 }
 
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                int aa = 0;
+                
             }
-
-            
 
             return succ;
         }
@@ -529,7 +527,7 @@ namespace WechatExport
                             }
                             catch (Exception)
                             {
-                                int aa = 0;
+                                
                             }
                     }
                 }
@@ -537,7 +535,7 @@ namespace WechatExport
             }
             catch (Exception)
             {
-                int aa = 0;
+                
 
             }
             return succ;
@@ -641,14 +639,14 @@ namespace WechatExport
                             }
                             catch (Exception)
                             {
-                                int aa = 0;
+                                
                             }
                 }
                 succ = true;
             }
             catch (Exception)
             {
-                int aa = 0;
+                
             }
             return succ;
         }
@@ -701,7 +699,7 @@ namespace WechatExport
                             }
                             catch (Exception)
                             {
-                                int aa = 0;
+                                
                             }
                     }
                 }
@@ -709,7 +707,7 @@ namespace WechatExport
             }
             catch (Exception)
             {
-                int aa = 0;
+                
             }
             return succ;
         }
@@ -777,7 +775,7 @@ namespace WechatExport
                             }
                             catch (Exception)
                             {
-                                int aa = 0;
+                                
                             }
                     }
                 }
@@ -785,7 +783,7 @@ namespace WechatExport
             }
             catch (Exception)
             {
-                int aa = 0;
+                
             }
             return succ;
         }
@@ -1114,10 +1112,8 @@ namespace WechatExport
                                 sb.AppendLine(ts);
                                 count++;
                             }
-                            catch (Exception ex)
+                            catch (Exception)
                             {
-                                int aa = 0;
-
                             }
 
 
@@ -1134,8 +1130,7 @@ namespace WechatExport
                 }
                 succ = true;
             }
-            catch (Exception ex) {
-                int aa = 0;
+            catch (Exception) {
             }
             return succ;
         }

@@ -10,6 +10,8 @@ using System.Text;
 using System.Diagnostics;
 using System.Runtime.Serialization.Plists;
 using System.Reflection;
+using iphonebackupbrowser;
+using System.Xml;
 
 namespace WechatExport
 {
@@ -22,10 +24,237 @@ namespace WechatExport
             public string link;
         }
 
+        public interface ILogger
+        {
+            void AddLog(String log);
+        }
+
         public Dictionary<string, string> fileDict = null;
         private string currentBackup;
         private List<MBFileRecord> files92;
         private Dictionary<string, string> templates;
+
+        public static string AssemblyDirectory
+        {
+            get
+            {
+                string codeBase = Assembly.GetExecutingAssembly().CodeBase;
+                UriBuilder uri = new UriBuilder(codeBase);
+                string path = Uri.UnescapeDataString(uri.Path);
+                return Path.GetDirectoryName(path);
+            }
+        }
+
+        public static bool Export(string backupPath, string saveBase, string indexPath, bool outputHtml, List<MBFileRecord> files92, ILogger logger)
+        {
+            Directory.CreateDirectory(saveBase);
+            logger.AddLog("分析文件夹结构");
+            WeChatInterface wechat = new WeChatInterface(backupPath, files92);
+            wechat.BuildFilesDictionary();
+            logger.AddLog("查找UID");
+            var UIDs = wechat.FindUIDs();
+            logger.AddLog("找到" + UIDs.Count + "个账号的消息记录");
+            var uidList = new List<WeChatInterface.DisplayItem>();
+            foreach (var uid in UIDs)
+            {
+#if DEBUG
+                if (!uid.Equals("ed93c38987566a06ce6430aa8bb5a1ef"))
+                {
+                    continue;
+                }
+#endif
+                var userBase = Path.Combine("Documents", uid);
+                logger.AddLog("开始处理UID: " + uid);
+                logger.AddLog("读取账号信息");
+                if (wechat.GetUserBasics(uid, userBase, out Friend myself))
+                {
+                    logger.AddLog("微信号：" + myself.ID() + " 昵称：" + myself.DisplayName());
+                }
+                else
+                {
+                    // logger.AddLog("没有找到本人信息，用默认值替代，可以手动替换正确的头像文件：" + Path.Combine("res", "DefaultProfileHead@2x-Me.png").ToString());
+                }
+                myself.DefaultProfileHead = "DefaultProfileHead@2x-Me.png";
+                var userSaveBase = Path.Combine(saveBase, myself.ID());
+                Directory.CreateDirectory(userSaveBase);
+                logger.AddLog("正在打开数据库");
+                var emojidown = new HashSet<DownloadTask>();
+                var chatList = new List<WeChatInterface.DisplayItem>();
+                Dictionary<string, Friend> friends = null;
+                int friendcount = 0;
+
+                List<string> dbs = wechat.GetMMSqlites(userBase);
+                foreach (string db in dbs)
+                {
+                    if (!wechat.OpenMMSqlite(userBase, db, out SQLiteConnection conn))
+                    {
+                        logger.AddLog("打开MM.sqlite失败，跳过");
+                        continue;
+                    }
+
+                    if (db.Equals("MM.sqlite"))
+                    {
+                        if (wechat.OpenWCDBContact(userBase, out SQLiteConnection wcdb))
+                            logger.AddLog("存在WCDB，与旧版好友列表合并使用");
+                        logger.AddLog("读取好友列表");
+                        if (!wechat.GetFriendsDict(conn, wcdb, myself, out friends, out friendcount))
+                        {
+                            logger.AddLog("读取好友列表失败，跳过");
+                            continue;
+                        }
+                        logger.AddLog("找到" + friendcount + "个好友/聊天室");
+                    }
+                    
+                    logger.AddLog("查找对话");
+                    wechat.GetChatSessions(conn, out List<string> chats);
+                    logger.AddLog("找到" + chats.Count + "个对话");
+                    
+                    foreach (var chat in chats)
+                    {
+                        var hash = chat;
+                        string displayname = chat, id = displayname;
+                        Friend friend = null;
+                        if (friends.ContainsKey(hash))
+                        {
+                            friend = friends[hash];
+                            displayname = friend.DisplayName();
+                            logger.AddLog("处理与" + displayname + "的对话");
+                            id = friend.ID();
+                        }
+                        else logger.AddLog("未找到好友信息，用默认名字代替");
+#if DEBUG
+                        if (!"25926707592@chatroom".Equals(id))
+                        {
+                            continue;
+                        }
+#endif
+                        if (outputHtml)
+                        {
+                            if (wechat.SaveHtmlRecord(conn, userBase, userSaveBase, displayname, id, myself, chat, friend, friends, out int count, out HashSet<DownloadTask> _emojidown))
+                            {
+                                logger.AddLog("成功处理" + count + "条");
+                                chatList.Add(new WeChatInterface.DisplayItem() { pic = "Portrait/" + (friend != null ? friend.FindPortrait() : "DefaultProfileHead@2x.png"), text = displayname, link = id + ".html" });
+                            }
+                            else logger.AddLog("失败");
+                            emojidown.UnionWith(_emojidown);
+
+                        }
+                        else
+                        {
+                            if (wechat.SaveTextRecord(conn, Path.Combine(userSaveBase, id + ".txt"), displayname, id, myself, chat, friend, friends, out int count)) logger.AddLog("成功处理" + count + "条");
+                            else logger.AddLog("失败");
+                        }
+                    }
+                    conn.Close();
+                }
+
+                
+                if (outputHtml)
+                {
+                    wechat.MakeListHTML(chatList, Path.Combine(userSaveBase, "聊天记录.html"));
+                }
+                var portraitdir = Path.Combine(userSaveBase, "Portrait");
+                Directory.CreateDirectory(portraitdir);
+                var downlist = new HashSet<DownloadTask>();
+                foreach (var item in friends)
+                {
+                    var tfriend = item.Value;
+                    Console.WriteLine(tfriend.ID());
+#if DEBUG
+                    if (!"25926707592@chatroom".Equals(tfriend.ID()))
+                    {
+                        continue;
+                    }
+#endif
+                    if (!tfriend.PortraitRequired) continue;
+                    if (tfriend.Portrait != null && tfriend.Portrait != "") downlist.Add(new DownloadTask() { url = tfriend.Portrait, filename = tfriend.ID() + ".jpg" });
+                    //if (tfriend.PortraitHD != null && tfriend.PortraitHD != "") downlist.Add(new DownloadTask() { url = tfriend.PortraitHD, filename = tfriend.ID() + "_hd.jpg" });
+                }
+                var downloader = new Downloader(6);
+                if (downlist.Count > 0)
+                {
+                    logger.AddLog("下载" + downlist.Count + "个头像");
+                    foreach (var item in downlist)
+                    {
+                        downloader.AddTask(item.url, Path.Combine(portraitdir, item.filename));
+                    }
+                    try
+                    {
+                        File.Copy(Path.Combine("res", "DefaultProfileHead@2x.png"), Path.Combine(portraitdir, "DefaultProfileHead@2x.png"), true);
+                    }
+                    catch (Exception ex) {
+                        int aa = 0;
+                    }
+                }
+                var emojidir = Path.Combine(userSaveBase, "Emoji");
+                Directory.CreateDirectory(emojidir);
+                if (emojidown != null && emojidown.Count > 0)
+                {
+                    logger.AddLog("下载" + emojidown.Count + "个表情");
+                    foreach (var item in emojidown)
+                    {
+                        downloader.AddTask(item.url, Path.Combine(emojidir, item.filename));
+                    }
+                }
+                string displayName = myself.DisplayName();
+                if (displayName == "我" && myself.alias != null && myself.alias.Length != 0)
+                {
+                    displayName = myself.alias;
+                }
+                uidList.Add(new WeChatInterface.DisplayItem() { pic = myself.ID() + "/Portrait/" + myself.FindPortrait(), text = displayName, link = myself.ID() + "/聊天记录.html" });
+                downloader.StartDownload();
+                System.Threading.Thread.Sleep(16);
+                downloader.WaitToEnd();
+                logger.AddLog("完成当前账号");
+            }
+            if (outputHtml) wechat.MakeListHTML(uidList, indexPath);
+            logger.AddLog("任务结束");
+            
+            wechat = null;
+            return true;
+        }
+
+        public static IPhoneBackup LoadManifest(string path)
+        {
+            IPhoneBackup backup = null;
+            string filename = Path.Combine(path, "Info.plist");
+            try
+            {
+                xdict dd = xdict.open(filename);
+                if (dd != null)
+                {
+                    backup = new IPhoneBackup
+                    {
+                        path = path
+                    };
+                    foreach (xdictpair p in dd)
+                    {
+                        if (p.item.GetType() == typeof(string))
+                        {
+                            switch (p.key)
+                            {
+                                case "Device Name": backup.DeviceName = (string)p.item; break;
+                                case "Display Name": backup.DisplayName = (string)p.item; break;
+                                case "Last Backup Date":
+                                    DateTime.TryParse((string)p.item, out backup.LastBackupDate);
+                                    break;
+                            }
+                        }
+                    }
+                }
+            }
+            catch (InvalidOperationException ex)
+            {
+                // MessageBox.Show(ex.InnerException.ToString());
+                backup = null;
+            }
+            catch (Exception ex)
+            {
+                // MessageBox.Show(ex.ToString());
+                backup = null;
+            }
+            return backup;
+        }
 
         public WeChatInterface(string currentBackup, List<MBFileRecord> files92)
         {
@@ -53,6 +282,9 @@ namespace WechatExport
             this.templates.Add("emoji", loadTemplate("emoji.html"));
             this.templates.Add("share", loadTemplate("share.html"));
             this.templates.Add("thumb", loadTemplate("thumb.html"));
+
+            this.templates.Add("listframe", loadTemplate("listframe.html"));
+            this.templates.Add("listitem", loadTemplate("listitem.html"));
         }
 
         private string loadTemplate(string name)
@@ -75,7 +307,23 @@ namespace WechatExport
             return "";
         }
 
-        public bool OpenMMSqlite(string userBase, out SQLiteConnection conn)
+        public List<string> GetMMSqlites(string userBase)
+        {
+            List<string> dbs = new List<string>();
+            // if (File.Exists(MyPath.Combine(userBase, "DB", "MM.sqlite")))
+            {
+                dbs.Add("MM.sqlite");
+            }
+
+            string sourceDirectory = Path.Combine(userBase, "DB");
+
+            var msgDbs = FindMessageDatabases(sourceDirectory);
+            dbs.AddRange(msgDbs);
+
+            return dbs;
+        }
+
+        public bool OpenMMSqlite(string userBase, string msgName, out SQLiteConnection conn)
         {
             bool succ = false;
             conn = null;
@@ -83,12 +331,15 @@ namespace WechatExport
             {
                 conn = new SQLiteConnection
                 {
-                    ConnectionString = "data source=" + GetBackupFilePath(MyPath.Combine(userBase, "DB", "MM.sqlite")) + ";version=3"
+                    ConnectionString = "data source=" + GetBackupFilePath(MyPath.Combine(userBase, "DB", msgName)) + ";version=3"
                 };
                 conn.Open();
                 succ = true;
             }
-            catch (Exception) { }
+            catch (Exception)
+            {
+                int aa = 0;
+            }
             return succ;
         }
 
@@ -105,8 +356,59 @@ namespace WechatExport
                 conn.Open();
                 succ = true;
             }
-            catch (Exception) { }
+            catch (Exception)
+            {
+                int aa = 0;
+            }
             return succ;
+        }
+
+        public string GetStringFromMMSetting(byte[] data, byte[] key)
+        {
+            string value = null;
+            
+            int[] positions = ByteArrayLocater.Locate(data, key);
+
+            if (positions != ByteArrayLocater.Empty)
+            {
+                foreach (int pos in positions)
+                {
+                    int length1 = data[pos + key.Length];
+                    int length2 = data[pos + key.Length + 2];
+
+                    if (length1 == length2 + 2)
+                    {
+                        value = Encoding.UTF8.GetString(data, pos + key.Length + 4, length2);
+                        break;
+                    }
+                }
+            }
+
+            return value;
+        }
+
+        public string GetStringFromMMSetting2(byte[] data, byte[] key)
+        {
+            string value = null;
+
+            int[] positions = ByteArrayLocater.Locate(data, key);
+
+            if (positions != ByteArrayLocater.Empty)
+            {
+                foreach (int pos in positions)
+                {
+                    int length1 = data[pos + key.Length];
+                    int length2 = data[pos + key.Length + 1];
+
+                    if (length1 == (length2 + 1))
+                    {
+                        value = Encoding.UTF8.GetString(data, pos + key.Length + 2, length2);
+                        break;
+                    }
+                }
+            }
+
+            return value;
         }
 
         public bool GetUserBasics(string uid, string userBase, out Friend friend)
@@ -117,30 +419,67 @@ namespace WechatExport
             {
                 var pr = new BinaryPlistReader();
                 var mmsetting = GetBackupFilePath(Path.Combine(userBase, "mmsetting.archive"));
-                using (var sw = new FileStream(mmsetting, FileMode.Open))
+                if (File.Exists(mmsetting))
                 {
-                    var dd = pr.ReadObject(sw);
-                    var objs = dd["$objects"] as object[];
-                    var dict = GetCFUID(objs[1] as Dictionary<object, object>);
-                    if (dict.ContainsKey("UsrName") && dict.ContainsKey("NickName"))
+                    using (var sw = new FileStream(mmsetting, FileMode.Open))
                     {
-                        friend.UsrName = objs[dict["UsrName"]] as string;
-                        friend.NickName = objs[dict["NickName"]] as string;
-                        succ = true;
-                    }
-                    if (dict.ContainsKey("AliasName"))
-                    {
-                        friend.alias = objs[dict["AliasName"]] as string;
-                    }
-                    for(int i = 0; i < objs.Length; i++)
-                        if(objs[i].GetType()==typeof(string) && (objs[i] as string).StartsWith("http://wx.qlogo.cn/mmhead/"))
+                        var dd = pr.ReadObject(sw);
+                        var objs = dd["$objects"] as object[];
+                        var dict = GetCFUID(objs[1] as Dictionary<object, object>);
+                        if (dict.ContainsKey("UsrName") && dict.ContainsKey("NickName"))
                         {
-                            if ((objs[i] as string).EndsWith("/0")) friend.PortraitHD = (objs[i] as string);
-                            else if ((objs[i] as string).EndsWith("/132")) friend.Portrait = (objs[i] as string);
+                            friend.UsrName = objs[dict["UsrName"]] as string;
+                            friend.NickName = objs[dict["NickName"]] as string;
+                            succ = true;
                         }
+                        if (dict.ContainsKey("AliasName"))
+                        {
+                            friend.alias = objs[dict["AliasName"]] as string;
+                        }
+                        for (int i = 0; i < objs.Length; i++)
+                            if (objs[i].GetType() == typeof(string) && (objs[i] as string).StartsWith("http://wx.qlogo.cn/mmhead/"))
+                            {
+                                if ((objs[i] as string).EndsWith("/0")) friend.PortraitHD = (objs[i] as string);
+                                else if ((objs[i] as string).EndsWith("/132")) friend.Portrait = (objs[i] as string);
+                            }
+                    }
                 }
+                else
+                {
+                    // Find it from MMappedKV
+                    mmsetting = FindMMSettingFromMMappedKV(uid);
+                    if (mmsetting != null && (mmsetting = GetBackupFilePath(mmsetting)) != null)
+                    {
+                        byte[] data = null;
+                        try
+                        {
+                            data = File.ReadAllBytes(mmsetting);
+                        }
+                        catch (Exception) { }
+
+                        if (data != null)
+                        {
+                            byte[] nameKey = { 56, 56 };
+                            friend.NickName = GetStringFromMMSetting2(data, nameKey);
+                            friend.alias = friend.NickName;
+
+                            byte[] headImgUrl = Encoding.UTF8.GetBytes("headimgurl");
+                            friend.Portrait = GetStringFromMMSetting(data, headImgUrl);
+
+                            byte[] headHDImgUrl = Encoding.UTF8.GetBytes("headhdimgurl");
+                            friend.PortraitHD = GetStringFromMMSetting(data, headHDImgUrl);
+                        }
+                    }
+                }
+
             }
-            catch (Exception) { }
+            catch (Exception ex)
+            {
+                int aa = 0;
+            }
+
+            
+
             return succ;
         }
 
@@ -188,12 +527,19 @@ namespace WechatExport
                                 friend.ProcessConStrRes2();
                                 friends.Add(friend);
                             }
-                            catch (Exception) { }
+                            catch (Exception)
+                            {
+                                int aa = 0;
+                            }
                     }
                 }
                 succ = true;
             }
-            catch (Exception) { }
+            catch (Exception)
+            {
+                int aa = 0;
+
+            }
             return succ;
         }
 
@@ -216,10 +562,22 @@ namespace WechatExport
                                 var len = reader.GetBytes(1, 0, buf, 0, buf.Length);
                                 var data = ReadBlob(buf, 0, (int)len);
                                 friend.UsrName = username;
+
+#if DEBUG
+                                if ("25926707592@chatroom".Equals(username))
+                                {
+                                    // continue;
+                                    Console.WriteLine("");
+                                }
+#endif
+
                                 if (data.ContainsKey(0x0a)) friend.NickName = data[0x0a];
                                 if (data.ContainsKey(0x12)) friend.alias = data[0x12];
                                 if (data.ContainsKey(0x1a)) friend.ConRemark = data[0x1a];
                                 if(username.EndsWith("@chatroom"))
+                                {
+                                    friend.IsChatroom = true;
+                                    friend.Members = new SortedDictionary<string, string>();
                                     try
                                     {
                                         //跳过第一个字符，是因为getstring按照utf-8读取，在和二进制混合的文件中，有可能前一个字符表示与它合并，导致读不出来
@@ -228,18 +586,70 @@ namespace WechatExport
                                         if (match2.Success) friend.dbContactChatRoom = match2.Groups[1].Value;
                                     }
                                     catch (Exception) { }
+
+                                    if ((friend.ConRemark == null || friend.ConRemark.Length == 0) && friend.dbContactChatRoom != null && friend.dbContactChatRoom.Length > 0)
+                                    {
+                                        XmlDocument xd = new XmlDocument();
+                                        try
+                                        {
+                                            xd.LoadXml(friend.dbContactChatRoom);
+                                            //查找固定名称 节点名要从根节点开始写
+                                            XmlNodeList nodes = xd.DocumentElement.SelectNodes("/RoomData/Member");
+                                            if (nodes != null)
+                                            {
+                                                foreach (XmlNode node in nodes)
+                                                {
+                                                    var nameAttr = node.Attributes.GetNamedItem("UserName");
+                                                    if (nameAttr != null)
+                                                    {
+                                                        string memberName = nameAttr.Value;
+                                                        XmlNode memberDisplayName = node.SelectSingleNode("/DisplayName");
+                                                        if (memberDisplayName != null)
+                                                        {
+
+                                                        }
+                                                        else
+                                                        {
+
+                                                        }
+                                                        // if (node.Attributes.GetNamedItem("UserName"))
+                                                    }
+
+
+                                                }
+                                            }
+
+
+                                        }
+                                        catch (Exception) { }
+                                            
+                                    }
+                                }
+                                    
                                 var str = reader.GetString(3);
                                 var match = Regex.Match(str, @"(ttp:\/\/wx.qlogo.cn\/(.+?)\/132)");
                                 if (match.Success) friend.Portrait = "h" + match.Groups[1].Value;
                                 match = Regex.Match(str, @"(ttp:\/\/wx.qlogo.cn\/([\w\/_]+?)\/0)");
                                 if (match.Success) friend.PortraitHD = "h" + match.Groups[1].Value;
+
+                                if (friend.Portrait == null && friend.PortraitHD != null)
+                                {
+                                    friend.Portrait = friend.PortraitHD;
+                                }
+
                                 friends.Add(friend);
                             }
-                            catch (Exception) { }
+                            catch (Exception)
+                            {
+                                int aa = 0;
+                            }
                 }
                 succ = true;
             }
-            catch (Exception) { }
+            catch (Exception)
+            {
+                int aa = 0;
+            }
             return succ;
         }
 
@@ -286,14 +696,21 @@ namespace WechatExport
                             {
                                 var name = reader.GetString(0);
                                 var match = Regex.Match(name, @"^Chat_([0-9a-f]{32})$");
+                                
                                 if (match.Success) sessions.Add(match.Groups[1].Value);
                             }
-                            catch (Exception) { }
+                            catch (Exception)
+                            {
+                                int aa = 0;
+                            }
                     }
                 }
                 succ = true;
             }
-            catch (Exception) { }
+            catch (Exception)
+            {
+                int aa = 0;
+            }
             return succ;
         }
 
@@ -358,12 +775,18 @@ namespace WechatExport
                                 count++;
 
                             }
-                            catch (Exception) { }
+                            catch (Exception)
+                            {
+                                int aa = 0;
+                            }
                     }
                 }
                 succ = true;
             }
-            catch (Exception) { }
+            catch (Exception)
+            {
+                int aa = 0;
+            }
             return succ;
         }
 
@@ -408,7 +831,7 @@ namespace WechatExport
                                 templateKey = "msg";
 
                                 var ts = "";
-                                if (type == 10000)
+                                if (type == 10000 || type == 10002)
                                 {
                                     ts = getTemplate("notice");
                                     ts = ts.Replace("%%MESSAGE%%", message);
@@ -495,8 +918,25 @@ namespace WechatExport
                                     }
                                     else
                                     {
-                                        ShellWait("lib\\silk_v3_decoder.exe", "\"" + audiosrc + "\" 1.pcm");
-                                        ShellWait("lib\\lame.exe", "-r -s 24000 --preset voice 1.pcm \"" + Path.Combine(assetsdir, msgid + ".mp3") + "\"");
+
+                                        // ShellWait("lib\\silk_v3_decoder.exe", "\"" + audiosrc + "\" 1.pcm");
+                                        // ShellWait("lib\\lame.exe", "-r -s 24000 --preset voice 1.pcm \"" + Path.Combine(assetsdir, msgid + ".mp3") + "\"");
+
+                                        string audPath = Path.Combine("aud", "1.aud");
+                                        File.Copy(audiosrc, audPath, true);
+                                        string mp3Path = Path.Combine("mp3", "1.mp3");
+                                        // string converterPath = Path.Combine("lib", "converter.sh");
+
+                                        string converterPath = Path.Combine(AssemblyDirectory, "lib");
+                                        converterPath = Path.Combine(converterPath, "converter.sh");
+
+                                        // ShellWait("/bin/sh", converterPath + " " + Path.Combine(AssemblyDirectory, "1.aud") + " " + Path.Combine(AssemblyDirectory, "1.mp3") + "  mp3");
+                                        ShellWait("/bin/sh", converterPath + " " + Path.Combine(AssemblyDirectory, "aud") + " " + Path.Combine(AssemblyDirectory, "mp3") + "  mp3");
+
+                                        File.Copy(mp3Path, Path.Combine(assetsdir, msgid + ".mp3"), true);
+                                        File.Delete(mp3Path);
+                                        // ShellWait("lib\\lame.exe", "-r -s 24000 --preset voice 1.pcm \"" + Path.Combine(assetsdir, msgid + ".mp3") + "\"");
+
                                         templateKey = "audio";
                                         // message = "<audio controls><source src=\"" + id + "_files/" + msgid + ".mp3\" type=\"audio/mpeg\"><a href=\"" + id + "_files/" + msgid + ".mp3\">播放</a></audio>";
                                         templateValues["%%AUDIOPATH%%"] = id + "_files/" + msgid + ".mp3";
@@ -528,10 +968,6 @@ namespace WechatExport
                                 {
                                     var hasthum = RequireResource(MyPath.Combine(userBase, "Video", table, msgid + ".video_thum"), Path.Combine(assetsdir, msgid + "_thum.jpg"));
                                     var hasvid = RequireResource(MyPath.Combine(userBase, "Video", table, msgid + ".mp4"), Path.Combine(assetsdir, msgid + ".mp4"));
-
-                                    var thumbPath = "";
-                                    var videoPath = "";
-                                    if (hasthum) thumbPath = id + "_files/" + msgid + "_thum.jpg";
 
                                     if (hasthum && hasvid) message = "<video controls poster=\"" + id + "_files/" + msgid + "_thum.jpg\"><source src=\"" + id + "_files/" + msgid + ".mp4\" type=\"video/mp4\"><a href=\"" + id + "_files/" + msgid + ".mp4\">播放</a></video>";
                                     else if (hasthum) message = "<img src=\"" + id + "_files/" + msgid + "_thum.jpg\" /> （视频丢失）";
@@ -678,8 +1114,10 @@ namespace WechatExport
                                 sb.AppendLine(ts);
                                 count++;
                             }
-                            catch (Exception)
+                            catch (Exception ex)
                             {
+                                int aa = 0;
+
                             }
 
 
@@ -690,29 +1128,43 @@ namespace WechatExport
                         using (var sw = new StreamWriter(Path.Combine(path, id + ".html")))
                         {
                             sw.Write(html);
+                            sw.Close();
                         }
                     }
                 }
                 succ = true;
             }
-            catch (Exception) { }
+            catch (Exception ex) {
+                int aa = 0;
+            }
             return succ;
         }
 
         public void MakeListHTML(List<DisplayItem> list, string path)
         {
-            using(var sw=new StreamWriter(path))
+            string html = this.getTemplate(@"listframe");
+            string itemTemplate = this.getTemplate(@"listitem");
+            
+            StringBuilder sb = new StringBuilder(4096);
+
+            foreach (var item in list)
             {
-                sw.WriteLine(@"<!DOCTYPE html PUBLIC ""-//W3C//DTD XHTML 1.0 Transitional//EN"" ""http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"">");
-                sw.WriteLine(@"<html xmlns=""http://www.w3.org/1999/xhtml""><head><meta http-equiv=""Content-Type"" content=""text/html; charset=utf-8"" /><meta name=""viewport"" content=""width=device-width, initial-scale=1"" /><meta name=""apple-mobile-web-app-capable"" content=""yes"" /><link href=""../styles/style.css"" rel=""stylesheet"" type=""text/css""><title>微信聊天记录</title></head>");
-                sw.WriteLine(@"<body><table width=""400"" border=""0"" style=""font-size:12px;border-collapse:separate;border-spacing:0px 20px;word-break:break-all;table-layout:fixed;word-wrap:break-word;"" align=""center"">");
-                foreach (var item in list)
-                {
-                    sw.Write(@"<tr><td width=""100"" align=""center""><img src=""" + item.pic + @""" style=""float:left;max-width:60px;max-height:60px"" /></td>");
-                    sw.WriteLine(@"<td><a href=""" + item.link + @""">" + item.text + @"</a></td></tr>");
-                }
-                sw.WriteLine(@"</body></html>");
+                string itemHtml = itemTemplate.Replace("%%ITEMPICPATH%%", item.pic);
+                itemHtml = itemHtml.Replace("%%ITEMLINK%%", item.link);
+                itemHtml = itemHtml.Replace("%%ITEMTEXT%%", item.text);
+
+                sb.AppendLine(itemHtml);
             }
+
+
+            html = html.Replace(@"%%TBODY%%", sb.ToString());
+
+            using (var sw = new StreamWriter(path))
+            {
+                sw.Write(html);
+                sw.Close();
+            }
+
         }
 
         public string GetBackupFilePath(string vpath)
@@ -743,6 +1195,47 @@ namespace WechatExport
             var zeros = new string('0', 32);
             if (UIDs.Contains(zeros)) UIDs.Remove(zeros);
             return UIDs.ToList();
+        }
+
+        public List<string> FindMessageDatabases(string basePath)
+        {
+            var dbs = new List<string>();
+            foreach (var filename in fileDict)
+            {
+                if (filename.Key.StartsWith(basePath))
+                {
+                    var name = filename.Key.Substring(basePath.Length);
+                    if (name.StartsWith("/"))
+                    {
+                        name = name.Substring(1);
+                    }
+                    var match = Regex.Match(name, @"^message_[0-9]{1,4}\.sqlite$");
+                    if (match.Success) dbs.Add(name);
+                }
+                
+            }
+            return dbs;
+        }
+
+        public string FindMMSettingFromMMappedKV(string uid)
+        {
+            string mmsetting = null;
+            const string MMSettingInMMappedKVHeader = "Documents/MMappedKV/mmsetting.archive.";
+            const string MMSettingInMMappedKVTail = ".crc";
+            foreach (var filename in fileDict)
+            {
+                if (filename.Key.StartsWith(MMSettingInMMappedKVHeader) && !filename.Key.EndsWith(MMSettingInMMappedKVTail))
+                {
+                    string uidInMmseting = filename.Key.Substring(MMSettingInMMappedKVHeader.Length);
+                    if (uid.Equals(CreateMD5(uidInMmseting)))
+                    {
+                        mmsetting = filename.Key;
+                        break;
+                    }
+                }
+
+            }
+            return mmsetting;
         }
 
         public bool RequireResource(string vpath,string dest)
@@ -867,6 +1360,9 @@ namespace WechatExport
         public string Portrait;
         public string PortraitHD;
         public bool PortraitRequired;
+        public string DefaultProfileHead = "DefaultProfileHead@2x.png";
+        public bool IsChatroom = false;
+        public SortedDictionary<string, string> Members = null;
 
         public string alias="";
         public void ProcessConStrRes2()
@@ -894,7 +1390,7 @@ namespace WechatExport
         {
             PortraitRequired = true;
             if (Portrait != null && Portrait != "") return ID() + ".jpg";
-            return "DefaultProfileHead@2x.png";
+            return DefaultProfileHead;
         }
         public string FindPortraitHD()
         {

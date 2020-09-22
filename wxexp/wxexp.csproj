@@ -1,0 +1,101 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>netcoreapp2.1</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Folder Include="WechatExport\" />
+    <Folder Include="res\" />
+    <Folder Include="res\templates\" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\WechatExport\Util.cs">
+      <Link>WechatExport\Util.cs</Link>
+    </Compile>
+    <Compile Include="..\WechatExport\wechat.cs">
+      <Link>WechatExport\wechat.cs</Link>
+    </Compile>
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="System.Data.SQLite.Core" Version="1.0.113.1" />
+    <PackageReference Include="System.Data.SQLite" Version="1.0.113.1" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="System.Runtime.Serialization.Plists">
+      <HintPath>lib\System.Runtime.Serialization.Plists.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="..\WechatExport\res\DefaultProfileHead%402x.png">
+      <Link>res\DefaultProfileHead%402x.png</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\WechatExport\res\templates\audio.html">
+      <Link>res\templates\audio.html</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\WechatExport\res\templates\card.html">
+      <Link>res\templates\card.html</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\WechatExport\res\templates\emoji.html">
+      <Link>res\templates\emoji.html</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\WechatExport\res\templates\frame.html">
+      <Link>res\templates\frame.html</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\WechatExport\res\templates\image.html">
+      <Link>res\templates\image.html</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\WechatExport\res\templates\msg.html">
+      <Link>res\templates\msg.html</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\WechatExport\res\templates\notice.html">
+      <Link>res\templates\notice.html</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\WechatExport\res\templates\share.html">
+      <Link>res\templates\share.html</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\WechatExport\res\templates\thumb.html">
+      <Link>res\templates\thumb.html</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\WechatExport\res\templates\video.html">
+      <Link>res\templates\video.html</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="lib\converter.sh">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="lib\silk\decoder">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\WechatExport\res\DefaultProfileHead%402x-Me.png">
+      <Link>res\DefaultProfileHead%402x-Me.png</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\WechatExport\res\templates\listframe.html">
+      <Link>res\templates\listframe.html</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\WechatExport\res\templates\listitem.html">
+      <Link>res\templates\listitem.html</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+  <ItemGroup>
+    <None Remove="lib\converter.sh" />
+    <None Remove="lib\silk\decoder" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\IPhoneBackupReader\IPhoneBackupReader.csproj" />
+  </ItemGroup>
+</Project>

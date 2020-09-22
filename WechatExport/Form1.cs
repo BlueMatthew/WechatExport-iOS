@@ -6,15 +6,13 @@ using System.IO;
 using mbdbdump;
 using System.Drawing;
 using System.Threading;
-using System.Data.SQLite;
 
 namespace WechatExport
 {
     public partial class Form1 : Form
     {
         private List<MBFileRecord> files92;
-        private WeChatInterface wechat = null;
-
+        
         public Form1()
         {
             InitializeComponent();
@@ -139,7 +137,11 @@ namespace WechatExport
         {
             this.ClientSize = new Size(groupBox2.Left * 2 + groupBox2.Width, groupBox2.Top + groupBox2.Height + groupBox1.Top);
             textBox1.Text = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
-            Button1_Click(null, null);
+#if DEBUG
+            textBox1.Text = "D:\\pngs\\bak\\";
+#endif
+            this.button1.PerformClick();
+            // Button1_Click(null, null);
         }
 
         private void ComboBox1_SelectedIndexChanged(object sender, EventArgs e)
@@ -196,135 +198,42 @@ namespace WechatExport
             new Thread(new ThreadStart(Run)).Start();
         }
 
+        class Logger : WeChatInterface.ILogger
+        {
+            ListBox listBox;
+
+            public Logger(ListBox listBox)
+            {
+                this.listBox = listBox;
+            }
+
+            public void AddLog(String log)
+            {
+                listBox.Items.Add(log);
+                listBox.TopIndex = listBox.Items.Count - 1;
+            }
+        }
+       
+
         void Run()
         {
             var saveBase = textBox1.Text;
-            Directory.CreateDirectory(saveBase);
-            AddLog("分析文件夹结构");
-            wechat = new WeChatInterface(((IPhoneBackup)comboBox1.SelectedItem).path, files92);
-            wechat.BuildFilesDictionary();
-            AddLog("查找UID");
-            var UIDs = wechat.FindUIDs();
-            AddLog("找到" + UIDs.Count + "个账号的消息记录");
-            var uidList = new List<WeChatInterface.DisplayItem>();
-            foreach (var uid in UIDs)
-            {
-                var userBase = Path.Combine("Documents", uid);
-                AddLog("开始处理UID: " + uid);
-                AddLog("读取账号信息");
-                if (wechat.GetUserBasics(uid, userBase, out Friend myself)) AddLog("微信号：" + myself.ID() + " 昵称：" + myself.DisplayName());
-                else AddLog("没有找到本人信息，用默认值替代");
-                var userSaveBase = Path.Combine(saveBase, myself.ID());
-                Directory.CreateDirectory(userSaveBase);
-                AddLog("正在打开数据库");
-                if (!wechat.OpenMMSqlite(userBase, out SQLiteConnection conn))
-                {
-                    AddLog("打开MM.sqlite失败，跳过");
-                    continue;
-                }
-                if (wechat.OpenWCDBContact(userBase, out SQLiteConnection wcdb))
-                    AddLog("存在WCDB，与旧版好友列表合并使用");
-                AddLog("读取好友列表");
-                if (!wechat.GetFriendsDict(conn, wcdb, myself, out Dictionary<string, Friend> friends, out int friendcount))
-                {
-                    AddLog("读取好友列表失败，跳过");
-                    continue;
-                }
-                AddLog("找到" + friendcount + "个好友/聊天室");
-                AddLog("查找对话");
-                wechat.GetChatSessions(conn, out List<string> chats);
-                AddLog("找到" + chats.Count + "个对话");
-                var emojidown = new HashSet<DownloadTask>();
-                var chatList = new List<WeChatInterface.DisplayItem>();
-                foreach (var chat in chats)
-                {
-                    var hash = chat;
-                    string displayname = chat, id = displayname;
-                    Friend friend = null;
-                    if (friends.ContainsKey(hash))
-                    {
-                        friend = friends[hash];
-                        displayname = friend.DisplayName();
-                        AddLog("处理与" + displayname + "的对话");
-                        id = friend.ID();
-                    }
-                    else AddLog("未找到好友信息，用默认名字代替");
-                    if (radioButton4.Checked)
-                    {
-                        if (wechat.SaveTextRecord(conn, Path.Combine(userSaveBase, id + ".txt"), displayname, id, myself, chat, friend, friends, out int count)) AddLog("成功处理" + count + "条");
-                        else AddLog("失败");
-                    }
-                    else if(radioButton3.Checked)
-                    {
-                        if (wechat.SaveHtmlRecord(conn, userBase, userSaveBase, displayname, id, myself, chat, friend, friends, out int count, out HashSet<DownloadTask> _emojidown))
-                        {
-                            AddLog("成功处理" + count + "条");
-                            chatList.Add(new WeChatInterface.DisplayItem() { pic = "Portrait/" + (friend != null ? friend.FindPortrait() : "DefaultProfileHead@2x.png"), text = displayname, link = id + ".html" });
-                        }
-                        else AddLog("失败");
-                        emojidown.UnionWith(_emojidown);
-                    }
-                }
-                conn.Close();
-                if(radioButton3.Checked) wechat.MakeListHTML(chatList, Path.Combine(userSaveBase, "聊天记录.html"));
-                var portraitdir = Path.Combine(userSaveBase, "Portrait");
-                Directory.CreateDirectory(portraitdir);
-                var downlist = new HashSet<DownloadTask>();
-                foreach (var item in friends)
-                {
-                    var tfriend = item.Value;
-                    if (!tfriend.PortraitRequired) continue;
-                    if (tfriend.Portrait != null && tfriend.Portrait != "") downlist.Add(new DownloadTask() { url = tfriend.Portrait, filename = tfriend.ID() + ".jpg" });
-                    //if (tfriend.PortraitHD != null && tfriend.PortraitHD != "") downlist.Add(new DownloadTask() { url = tfriend.PortraitHD, filename = tfriend.ID() + "_hd.jpg" });
-                }
-                var downloader = new Downloader(6);
-                if (downlist.Count > 0)
-                {
-                    AddLog("下载" + downlist.Count + "个头像");
-                    foreach (var item in downlist)
-                    {
-                            downloader.AddTask(item.url, Path.Combine(portraitdir, item.filename));
-                    }
-                    try
-                    {
-                        File.Copy("res\\DefaultProfileHead@2x.png", Path.Combine(portraitdir, "DefaultProfileHead@2x.png"));
-                    }
-                    catch (Exception) { }
-                }
-                var emojidir= Path.Combine(userSaveBase, "Emoji");
-                Directory.CreateDirectory(emojidir);
-                if (emojidown!=null && emojidown.Count > 0)
-                {
-                    AddLog("下载" + emojidown.Count + "个表情");
-                        foreach (var item in emojidown)
-                        {
-                                downloader.AddTask(item.url, Path.Combine(emojidir, item.filename));
-                        }
-                }
-                uidList.Add(new WeChatInterface.DisplayItem() { pic = myself.ID()+"/Portrait/"+myself.FindPortrait(), text = myself.DisplayName(), link = myself.ID() + "/聊天记录.html" });
-                downloader.StartDownload();
-                downloader.WaitToEnd();
-                AddLog("完成当前账号");
-            }
-            if (radioButton3.Checked) wechat.MakeListHTML(uidList, Path.Combine(saveBase, "聊天记录.html"));
-            AddLog("任务结束");
+
+            WeChatInterface.ILogger logger = new Logger(this.listBox1);
+            bool toHtml = radioButton3.Checked;
+            string indexPath = Path.Combine(saveBase, "index.html");
+
+            WeChatInterface.Export(((IPhoneBackup)comboBox1.SelectedItem).path, saveBase, indexPath, toHtml, files92, logger);
+         
             try
             {
-                if (radioButton3.Checked) System.Diagnostics.Process.Start(Path.Combine(saveBase, "聊天记录.html"));
+                if (toHtml) System.Diagnostics.Process.Start(indexPath);
             }
             catch (Exception) { }
             groupBox1.Enabled = groupBox3.Enabled = groupBox4.Enabled = true;
             button2.Enabled = true;
-            wechat = null;
+           
             MessageBox.Show("处理完成");
-        }
-
-        
-
-        void AddLog(string str)
-        {
-            listBox1.Items.Add(str);
-            listBox1.TopIndex = listBox1.Items.Count - 1;
         }
 
         private void Form1_FormClosing(object sender, FormClosingEventArgs e)

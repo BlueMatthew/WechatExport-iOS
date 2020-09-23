@@ -19,7 +19,9 @@ Save iOS WeChat history as HTML or TXT with neat layout and picture &amp; audio 
 
 dotnet wxexp.dll --backup \[iTunes Backup Path] --output \[History Output Path]
 
+注意，程序依赖的ffmpeg和silk-v3-decoder需要自行编译（lib目录下的decoder可能不兼容），编译ffmpeg需要附带参数：--enable-libmp3lame
 
+编译可参考：[https://stackoverflow.com/questions/42337870/how-to-convert-silk-audio-file-from-wechat-to-amr-format]
 
 The only open-source one-click application that parses the local database of Wechat, the most popular chatting app in China. This software bypasses the sandbox restriction recently introduced in iOS, and obtain Wechat app's data from an iTunes backup. It then links together data in SQLite files and various assets such as images, audios (format conversion involved), videos, etc. Users get a series of well-formated HTML files of their chat history, so that they can read later on any browsers.
 

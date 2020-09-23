@@ -1203,12 +1203,14 @@ namespace WechatExport
 
         public List<string> FindMessageDatabases(string basePath)
         {
+            string vpath = basePath.Replace('\\', '/');
+
             var dbs = new List<string>();
             foreach (var filename in fileDict)
             {
-                if (filename.Key.StartsWith(basePath))
+                if (filename.Key.StartsWith(vpath))
                 {
-                    var name = filename.Key.Substring(basePath.Length);
+                    var name = filename.Key.Substring(vpath.Length);
                     if (name.StartsWith("/"))
                     {
                         name = name.Substring(1);

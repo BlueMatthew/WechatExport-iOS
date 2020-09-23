@@ -3,7 +3,7 @@ Save iOS WeChat history as HTML or TXT with neat layout and picture &amp; audio 
 
 将iOS上微信的聊天记录导出为包括图片和语音的HTML，或纯文本。
 
-# 操作步骤：
+### 操作步骤：
 1. 用iTunes将手机备份到电脑上（建议备份前杀掉微信），Windows操作系统一般位于目录：C:\用户\[用户名]\AppData\Roaming\Apple Computer\MobileSync\Backup\
 2. 下载本代码的执行文件：https://github.com/BlueMatthew/WechatExport-iOS/releases/download/1.4.0/Release_1.4.0_win.zip
 3. 解压压缩文件
@@ -14,7 +14,7 @@ Save iOS WeChat history as HTML or TXT with neat layout and picture &amp; audio 
 
 测试微信版本：7.0.15
 
-# Mac版本
+### Mac版本
 基于.net core 2.1实现了一个简单的命令行程序wxexp，可以在Mac环境下执行。命令如下：
 
 dotnet wxexp.dll --backup \[iTunes Backup Path] --output \[History Output Path]

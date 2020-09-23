@@ -212,6 +212,11 @@ namespace WechatExport
                 listBox.Items.Add(log);
                 listBox.TopIndex = listBox.Items.Count - 1;
             }
+
+            public void Debug(string log)
+            {
+                AddLog(log);
+            }
         }
        
 

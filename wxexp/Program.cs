@@ -17,6 +17,11 @@ namespace wxexp
             {
                 Console.WriteLine(log);
             }
+
+            public void Debug(string log)
+            {
+                Console.Write(log);
+            }
         }
 
         static string ParseArg(string[] args, string name)

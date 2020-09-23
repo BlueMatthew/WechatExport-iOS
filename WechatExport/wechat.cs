@@ -27,12 +27,14 @@ namespace WechatExport
         public interface ILogger
         {
             void AddLog(String log);
+            void Debug(string log);
         }
 
         public Dictionary<string, string> fileDict = null;
         private string currentBackup;
         private List<MBFileRecord> files92;
         private Dictionary<string, string> templates;
+        private ILogger logger;
 
         public static string AssemblyDirectory
         {
@@ -49,7 +51,7 @@ namespace WechatExport
         {
             Directory.CreateDirectory(saveBase);
             logger.AddLog("分析文件夹结构");
-            WeChatInterface wechat = new WeChatInterface(backupPath, files92);
+            WeChatInterface wechat = new WeChatInterface(backupPath, files92, logger);
             wechat.BuildFilesDictionary();
             logger.AddLog("查找UID");
             var UIDs = wechat.FindUIDs();
@@ -60,7 +62,7 @@ namespace WechatExport
 #if DEBUG
                 if (!uid.Equals("ed93c38987566a06ce6430aa8bb5a1ef"))
                 {
-                    continue;
+                    // continue;
                 }
 #endif
                 var userBase = Path.Combine("Documents", uid);
@@ -74,7 +76,6 @@ namespace WechatExport
                 {
                     // logger.AddLog("没有找到本人信息，用默认值替代，可以手动替换正确的头像文件：" + Path.Combine("res", "DefaultProfileHead@2x-Me.png").ToString());
                 }
-                myself.DefaultProfileHead = "DefaultProfileHead@2x-Me.png";
                 var userSaveBase = Path.Combine(saveBase, myself.ID());
                 Directory.CreateDirectory(userSaveBase);
                 logger.AddLog("正在打开数据库");
@@ -125,7 +126,7 @@ namespace WechatExport
 #if DEBUG
                         if (!"25926707592@chatroom".Equals(id))
                         {
-                            continue;
+                            // continue;
                         }
 #endif
                         if (outputHtml)
@@ -148,7 +149,6 @@ namespace WechatExport
                     conn.Close();
                 }
 
-                
                 if (outputHtml)
                 {
                     wechat.MakeListHTML(chatList, Path.Combine(userSaveBase, "聊天记录.html"));
@@ -159,11 +159,11 @@ namespace WechatExport
                 foreach (var item in friends)
                 {
                     var tfriend = item.Value;
-                    Console.WriteLine(tfriend.ID());
+                    // Console.WriteLine(tfriend.ID());
 #if DEBUG
                     if (!"25926707592@chatroom".Equals(tfriend.ID()))
                     {
-                        continue;
+                        // continue;
                     }
 #endif
                     if (!tfriend.PortraitRequired) continue;
@@ -254,10 +254,11 @@ namespace WechatExport
             return backup;
         }
 
-        public WeChatInterface(string currentBackup, List<MBFileRecord> files92)
+        public WeChatInterface(string currentBackup, List<MBFileRecord> files92, ILogger logger)
         {
             this.currentBackup = currentBackup;
             this.files92 = files92;
+            this.logger = logger;
             this.templates = new Dictionary<string, string>();
 
             loadTemplates();
@@ -354,9 +355,9 @@ namespace WechatExport
                 conn.Open();
                 succ = true;
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                
+                logger.Debug(ex.ToString());
             }
             return succ;
         }
@@ -473,9 +474,9 @@ namespace WechatExport
                 }
 
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                
+                logger.Debug(ex.ToString());
             }
 
             return succ;
@@ -525,18 +526,17 @@ namespace WechatExport
                                 friend.ProcessConStrRes2();
                                 friends.Add(friend);
                             }
-                            catch (Exception)
+                            catch (Exception ex)
                             {
-                                
+                                logger.Debug(ex.ToString());
                             }
                     }
                 }
                 succ = true;
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                
-
+                logger.Debug(ex.ToString());
             }
             return succ;
         }
@@ -565,7 +565,7 @@ namespace WechatExport
                                 if ("25926707592@chatroom".Equals(username))
                                 {
                                     // continue;
-                                    Console.WriteLine("");
+                                    // Console.WriteLine("");
                                 }
 #endif
 
@@ -583,14 +583,17 @@ namespace WechatExport
                                         var match2 = Regex.Match(reader.GetString(2), @"RoomData>(.*?)<\/RoomData>", RegexOptions.Singleline);
                                         if (match2.Success) friend.dbContactChatRoom = match2.Groups[1].Value;
                                     }
-                                    catch (Exception) { }
+                                    catch (Exception ex)
+                                    {
+                                        logger.Debug(ex.ToString());
+                                    }
 
                                     if ((friend.ConRemark == null || friend.ConRemark.Length == 0) && friend.dbContactChatRoom != null && friend.dbContactChatRoom.Length > 0)
                                     {
                                         XmlDocument xd = new XmlDocument();
                                         try
                                         {
-                                            xd.LoadXml(friend.dbContactChatRoom);
+                                            xd.LoadXml("<RoomData>" + friend.dbContactChatRoom + "</RoomData>");
                                             //查找固定名称 节点名要从根节点开始写
                                             XmlNodeList nodes = xd.DocumentElement.SelectNodes("/RoomData/Member");
                                             if (nodes != null)
@@ -604,11 +607,11 @@ namespace WechatExport
                                                         XmlNode memberDisplayName = node.SelectSingleNode("/DisplayName");
                                                         if (memberDisplayName != null)
                                                         {
-
+                                                            friend.Members.Add(memberName, memberDisplayName.Value != null ? memberDisplayName.Value : "");
                                                         }
                                                         else
                                                         {
-
+                                                            friend.Members.Add(memberName, "");
                                                         }
                                                         // if (node.Attributes.GetNamedItem("UserName"))
                                                     }
@@ -619,7 +622,10 @@ namespace WechatExport
 
 
                                         }
-                                        catch (Exception) { }
+                                        catch (Exception ex)
+                                        {
+                                            logger.Debug(ex.ToString());
+                                        }
                                             
                                     }
                                 }
@@ -637,16 +643,16 @@ namespace WechatExport
 
                                 friends.Add(friend);
                             }
-                            catch (Exception)
+                            catch (Exception ex)
                             {
-                                
+                                logger.Debug(ex.ToString());
                             }
                 }
                 succ = true;
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                
+                logger.Debug(ex.ToString());
             }
             return succ;
         }
@@ -690,24 +696,27 @@ namespace WechatExport
                     using(var reader = cmd.ExecuteReader())
                     {
                         while(reader.Read())
+                        {
                             try
                             {
                                 var name = reader.GetString(0);
                                 var match = Regex.Match(name, @"^Chat_([0-9a-f]{32})$");
-                                
+
                                 if (match.Success) sessions.Add(match.Groups[1].Value);
                             }
-                            catch (Exception)
+                            catch (Exception ex)
                             {
-                                
+                                logger.Debug(ex.ToString());
                             }
+                        }
+                            
                     }
                 }
                 succ = true;
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                
+                logger.Debug(ex.ToString());
             }
             return succ;
         }
@@ -802,7 +811,7 @@ namespace WechatExport
                 }
                 using (var cmd = new SQLiteCommand(conn))
                 {
-                    cmd.CommandText = "SELECT CreateTime,Message,Des,Type,MesLocalID FROM Chat_" + table;
+                    cmd.CommandText = "SELECT CreateTime,Message,Des,Type,MesLocalID FROM Chat_" + table + " ORDER BY CreateTime";
                     using (var reader = cmd.ExecuteReader())
                     {
                         var assetsdir = Path.Combine(path, id + "_files");

@@ -92,6 +92,14 @@
       <Link>res\templates\system.html</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <Content Include="..\WechatExport\lib\lame.exe">
+      <Link>lib\lame.exe</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\WechatExport\lib\silk_v3_decoder.exe">
+      <Link>lib\silk_v3_decoder.exe</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
   <ItemGroup>
     <None Remove="lib\converter.sh" />

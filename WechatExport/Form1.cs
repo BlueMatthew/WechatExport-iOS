@@ -27,14 +27,30 @@ namespace WechatExport
             try
             {
                 DirectoryInfo d = new DirectoryInfo(s);
+                int numberOfBackups = 0;
                 foreach (DirectoryInfo sd in d.GetDirectories())
                 {
-                    comboBox1.Items.Add(LoadManifest(sd.FullName));
+                    IPhoneBackup backup = LoadManifest(sd.FullName);
+                    if (backup != null)
+                    {
+                        comboBox1.Items.Add(backup);
+                        ++numberOfBackups;
+                    }
+                }
+
+                if (numberOfBackups == 0)
+                {
+                    System.Threading.Timer timer = null;
+                    timer = new System.Threading.Timer((obj) =>
+                    {
+                        MessageBox.Show("没有找到iTunes备份文件夹，可能需要手动选择。", "提示");
+                        timer.Dispose();
+                    }, null, 100, System.Threading.Timeout.Infinite);
                 }
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                MessageBox.Show("没有找到iTunes备份文件夹，可能需要手动选择。");
+                listBox1.Items.Add(ex.ToString());
             }
             comboBox1.Items.Add("<选择其他备份文件夹...>");
         }
@@ -238,7 +254,7 @@ namespace WechatExport
             groupBox1.Enabled = groupBox3.Enabled = groupBox4.Enabled = true;
             button2.Enabled = true;
            
-            MessageBox.Show("处理完成");
+            MessageBox.Show("处理完成", "提示");
         }
 
         private void Form1_FormClosing(object sender, FormClosingEventArgs e)

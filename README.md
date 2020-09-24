@@ -5,7 +5,7 @@ Save iOS WeChat history as HTML or TXT with neat layout and picture &amp; audio 
 
 ### 操作步骤：
 1. 用iTunes将手机备份到电脑上（建议备份前杀掉微信），Windows操作系统一般位于目录：C:\用户\[用户名]\AppData\Roaming\Apple Computer\MobileSync\Backup\
-2. 下载本代码的执行文件：https://github.com/BlueMatthew/WechatExport-iOS/releases/download/1.4.0/Release_1.4.0_win.zip
+2. 下载本代码的执行文件：https://github.com/BlueMatthew/WechatExport-iOS/releases/download/v1.5.0/Release_1.5.0_win.zip
 3. 解压压缩文件
 4. 执行解压出来的WechatExport.exe (需要安装.net 4.5+)
 5. 按界面提示进行操作。
@@ -26,4 +26,4 @@ dotnet wxexp.dll --backup \[iTunes Backup Path] --output \[History Output Path]
 The only open-source one-click application that parses the local database of Wechat, the most popular chatting app in China. This software bypasses the sandbox restriction recently introduced in iOS, and obtain Wechat app's data from an iTunes backup. It then links together data in SQLite files and various assets such as images, audios (format conversion involved), videos, etc. Users get a series of well-formated HTML files of their chat history, so that they can read later on any browsers.
 
 Download latest stable binary here: 在这里下载最新的打包好的程序：
-https://github.com/BlueMatthew/WechatExport-iOS/releases/download/1.4.0/Release_1.4.0_win.zip
+https://github.com/BlueMatthew/WechatExport-iOS/releases/download/v1.5.0/Release_1.5.0_win.zip

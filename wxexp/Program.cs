@@ -69,6 +69,7 @@ namespace wxexp
 
             if (backup == null)
             {
+                Console.WriteLine("未找到iTunes备份相关的文件。");
                 return 1;
             }
 
@@ -100,12 +101,11 @@ namespace wxexp
 
             if (files92 == null || files92.Count <= 0)
             {
-                Console.WriteLine("未找到。");
+                Console.WriteLine("未找到iTunes备份相关的文件。");
                 return 1;
             }
 
             var saveBase = output;
-
 
             WeChatInterface.ILogger logger = new Logger();
             bool toHtml = true;

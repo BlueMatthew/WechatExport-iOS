@@ -1386,9 +1386,21 @@ namespace WechatExport
             p.StartInfo.FileName = file;
             p.StartInfo.Arguments = args;
             p.StartInfo.WindowStyle = (ProcessWindowStyle.Hidden);
+            p.StartInfo.RedirectStandardOutput = true;
+            p.StartInfo.RedirectStandardError = true;
+            p.OutputDataReceived += P_OutputDataReceived;
+            p.ErrorDataReceived += P_OutputDataReceived;
             p.Start();
+            p.BeginErrorReadLine();
+            p.BeginOutputReadLine();
             p.WaitForExit();
         }
+
+        private void P_OutputDataReceived(object sender, DataReceivedEventArgs e)
+        {
+            // throw new NotImplementedException();
+        }
+
         private static Random random = new Random();
         public static string RandomString(int length)
         {

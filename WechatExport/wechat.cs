@@ -94,6 +94,17 @@ namespace WechatExport
                 Dictionary<string, Friend> friends = null;
                 int friendcount = 0;
 
+                Dictionary<string, Session> sessions = null;
+                if (wechat.OpenSessions(userBase, out SQLiteConnection sessionConnection))
+                {
+                    wechat.GetSessionDict(userBase, sessionConnection, out sessions);
+                    sessionConnection.Close();
+                    if (sessions == null)
+                    {
+                        sessions = new Dictionary<string, Session>();
+                    }
+                }
+
                 List<string> dbs = wechat.GetMMSqlites(userBase);
                 foreach (string db in dbs)
                 {
@@ -133,6 +144,18 @@ namespace WechatExport
                             id = friend.ID();
                         }
                         else logger.AddLog("未找到好友信息，用默认名字代替");
+
+                        if (displayname.EndsWith("@chatroom"))
+                        {
+                            if (sessions.ContainsKey(displayname))
+                            {
+                                Session session = sessions[displayname];
+                                if (session.DisplayName != null && session.DisplayName.Length != 0)
+                                {
+                                    displayname = session.DisplayName;
+                                }
+                            }
+                        }
 #if DEBUG
                         if (!"23069688360@chatroom".Equals(id))
                         {
@@ -376,6 +399,53 @@ namespace WechatExport
             return succ;
         }
 
+        public bool OpenSessions(string userBase, out SQLiteConnection conn)
+        {
+            bool succ = false;
+            conn = null;
+            try
+            {
+                conn = new SQLiteConnection
+                {
+                    ConnectionString = "data source=" + GetBackupFilePath(MyPath.Combine(userBase, "session", "session.db")) + ";version=3"
+                };
+                conn.Open();
+                succ = true;
+            }
+            catch (Exception)
+            {
+
+            }
+            return succ;
+        }
+
+        public string GetDisplayNameFromSessionCellData(byte[] data, byte[] key1, byte[] key2, int offset)
+        {
+            string value = null;
+
+            int[] positions = ByteArrayLocater.Locate(data, key1);
+
+            if (positions != ByteArrayLocater.Empty)
+            {
+                foreach (int pos in positions)
+                {
+                    // int length1 = data[pos + key.Length];
+                    if (ByteArrayLocater.IsMatch(data, pos + offset + key1.Length, key2))
+                    {
+                        int pos2 = pos + key1.Length + offset + key2.Length;
+                        int length = data[pos2];
+                        if (pos2 + 1 + length < data.Length)
+                        {
+                            value = Encoding.UTF8.GetString(data, pos2 + 1, length);
+                            break;
+                        }
+                    }
+                }
+            }
+
+            return value;
+        }
+
         public string GetStringFromMMSetting(byte[] data, byte[] key)
         {
             string value = null;
@@ -515,6 +585,99 @@ namespace WechatExport
                 }
             }
             return ret;
+        }
+
+        public bool GetSessionDict(string userBase, SQLiteConnection conn, out Dictionary<string, Session> sessions)
+        {
+            bool succ = false;
+            sessions = new Dictionary<string, Session>();
+            List<string> keys = new List<string>();
+            try
+            {
+                using (var cmd = new SQLiteCommand(conn))
+                {
+                    cmd.CommandText = "SELECT ConStrRes1,CreateTime,unreadcount,UsrName FROM SessionAbstract";
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                            try
+                            {
+                                var usrName = reader.GetString(3);
+#if DEBUG
+                                if (!"23069688360@chatroom".Equals(usrName))
+                                {
+                                    continue;
+                                }
+#endif
+                                var createTime = FromUnixTime(reader.GetInt64(1)).ToString();
+                                var unreadCount = reader.GetInt32(2);
+                                var extFileName = reader.GetTextReader(0).ReadToEnd();
+                                
+                                var session = new Session
+                                {
+                                    UsrName = usrName,
+                                    CreateTime = createTime,
+                                    UnreadCount = unreadCount,
+                                    ExtFileName = extFileName,
+                                    DisplayName = ""
+                                };
+                                // friend.ProcessConStrRes2();
+                                sessions[usrName] = session;
+                                keys.Add(usrName);
+                            }
+                            catch (Exception ex)
+                            {
+                                logger.Debug(ex.ToString());
+                            }
+                    }
+                }
+                succ = true;
+            }
+            catch (Exception ex)
+            {
+                logger.Debug(ex.ToString());
+            }
+
+            byte[] displayNameKey1 = { 0x30 };
+            byte[] displayNameKey2 = { 0x3A };
+
+            foreach (var key in keys)
+            {
+#if DEBUG
+                if ("23069688360@chatroom".Equals(key))
+                {
+                    
+                    Console.WriteLine("");
+                }
+#endif
+                Session session = sessions[key];
+
+                if (session.ExtFileName == null || session.ExtFileName.Length == 0) continue;
+
+                string fileName = session.ExtFileName;
+                if (fileName.StartsWith("/") || fileName.StartsWith("\\")) fileName = fileName.Substring(1);
+                fileName = Path.Combine(userBase, fileName);
+                fileName = FindSessionCellDataFileName(fileName);
+                if (fileName == null) continue;
+
+                fileName = GetBackupFilePath(fileName);
+                if (fileName == null || !File.Exists(fileName)) continue;
+
+                byte[] cellData = File.ReadAllBytes(fileName);
+
+                if (cellData == null) continue;
+
+                string displayName = GetDisplayNameFromSessionCellData(cellData, displayNameKey1, displayNameKey2, 1);
+
+                if (displayName != null)
+                {
+                    session.DisplayName = displayName;
+                }
+
+                sessions[key] = session;
+            }
+
+            return succ;
         }
 
         public bool GetFriends(SQLiteConnection conn, Friend myself, out List<Friend> friends)
@@ -1266,6 +1429,22 @@ namespace WechatExport
             return dbs;
         }
 
+        public string FindSessionCellDataFileName(string cellDataBasePath)
+        {
+            string vpath = cellDataBasePath.Replace('\\', '/');
+
+            var dbs = new List<string>();
+            foreach (var filename in fileDict)
+            {
+                if (filename.Key.StartsWith(vpath) && filename.Key.Contains("celldataV7"))
+                {
+                    return filename.Key;
+                }
+
+            }
+            return null;
+        }
+
         public string FindMMSettingFromMMappedKV(string uid)
         {
             string mmsetting = null;
@@ -1459,6 +1638,16 @@ namespace WechatExport
             if (PortraitHD != null && PortraitHD != "") return ID() + "_hd.jpg";
             return FindPortrait();
         }
+    }
+
+    public class Session
+    {
+        public string UsrName;
+        public string CreateTime;
+        public string ExtFileName;
+        public string DisplayName;
+        public int UnreadCount = 0;
+
     }
 
     public static class DictionaryHelper

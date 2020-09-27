@@ -103,7 +103,7 @@ namespace WechatExport
             return list.Count == 0 ? Empty : list.ToArray();
         }
 
-        static bool IsMatch(byte[] array, int position, byte[] candidate)
+        public static bool IsMatch(byte[] array, int position, byte[] candidate)
         {
             if (candidate.Length > (array.Length - position))
                 return false;

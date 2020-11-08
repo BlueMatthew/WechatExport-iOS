@@ -88,6 +88,8 @@ namespace WechatExport
                 }
                 var userSaveBase = Path.Combine(saveBase, myself.ID());
                 Directory.CreateDirectory(userSaveBase);
+                Directory.CreateDirectory(Path.Combine(userSaveBase, "__mp3__"));
+                Directory.CreateDirectory(Path.Combine(userSaveBase, "__aud__"));
                 logger.AddLog("正在打开数据库");
                 var emojidown = new HashSet<DownloadTask>();
                 var chatList = new List<WeChatInterface.DisplayItem>();
@@ -237,6 +239,16 @@ namespace WechatExport
                 }
                 uidList.Add(new WeChatInterface.DisplayItem() { pic = myself.ID() + "/Portrait/" + myself.FindPortrait(), text = displayName, link = myself.ID() + "/聊天记录.html" });
                 downloader.StartDownload();
+                if (Directory.Exists(Path.Combine(userSaveBase, "__mp3__")))
+                {
+                    Directory.Delete(Path.Combine(userSaveBase, "__mp3__"), true);
+                }
+                if (Directory.Exists(Path.Combine(userSaveBase, "__aud__")))
+                {
+                    Directory.Delete(Path.Combine(userSaveBase, "__aud__"), true);
+                }
+
+
                 System.Threading.Thread.Sleep(16);
                 downloader.WaitToEnd();
                 logger.AddLog("完成当前账号");
@@ -1120,19 +1132,25 @@ namespace WechatExport
                                         }
                                         else if (Environment.OSVersion.Platform == PlatformID.MacOSX || Environment.OSVersion.Platform == PlatformID.Unix)
                                         {
-                                            string audPath = Path.Combine("aud", "1.aud");
-                                            File.Copy(audiosrc, audPath, true);
-                                            string mp3Path = Path.Combine("mp3", "1.mp3");
+                                            
+
+                                            string audPath = Path.Combine(path, "__aud__");
+                                            string audFile = Path.Combine(audPath, "1.aud");
+
+                                            File.Copy(audiosrc, audFile, true);
+                                            string mp3Path = Path.Combine(path, "__mp3__");
+                                            string mp3File = Path.Combine(mp3Path, "1.mp3");
                                             // string converterPath = Path.Combine("lib", "converter.sh");
 
                                             string converterPath = Path.Combine(AssemblyDirectory, "lib");
                                             converterPath = Path.Combine(converterPath, "converter.sh");
 
                                             // ShellWait("/bin/sh", converterPath + " " + Path.Combine(AssemblyDirectory, "1.aud") + " " + Path.Combine(AssemblyDirectory, "1.mp3") + "  mp3");
-                                            ShellWait("/bin/sh", converterPath + " " + Path.Combine(AssemblyDirectory, "aud") + " " + Path.Combine(AssemblyDirectory, "mp3") + "  mp3");
+                                            ShellWait("/bin/sh", converterPath + " " + audPath + " " + mp3Path + "  mp3");
 
-                                            File.Copy(mp3Path, Path.Combine(assetsdir, msgid + ".mp3"), true);
-                                            File.Delete(mp3Path);
+                                            File.Copy(mp3File, Path.Combine(assetsdir, msgid + ".mp3"), true);
+                                            File.Delete(mp3File);
+                                            File.Delete(audFile);
                                             // ShellWait("lib\\lame.exe", "-r -s 24000 --preset voice 1.pcm \"" + Path.Combine(assetsdir, msgid + ".mp3") + "\"");
                                         }
                                         templateKey = "audio";
@@ -1201,10 +1219,22 @@ namespace WechatExport
                                 {
                                     var serializer = new DataContractJsonSerializer(typeof(Message64));
                                     var stream = new MemoryStream(Encoding.UTF8.GetBytes(message));
-                                    Message64 msg64 = (Message64)serializer.ReadObject(stream);
+                                    Message64 msg64 = null;
+                                    try
+                                    {
+                                        msg64 = (Message64)serializer.ReadObject(stream);
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        string aa = ex.Message;
+                                    }
 
                                     templateKey = "notice";
-                                    templateValues["%%MESSAGE%%"] = msg64.msgContent;
+                                    if (msg64 != null)
+                                    {
+                                        templateValues["%%MESSAGE%%"] = msg64.msgContent;
+                                    }
+                                    
                                     // message = "[视频/语音通话]";
                                 }
                                 else if (type == 3)
@@ -1327,8 +1357,9 @@ namespace WechatExport
                                 sb.AppendLine(ts);
                                 count++;
                             }
-                            catch (Exception)
+                            catch (Exception ex)
                             {
+                                string dd = ex.Message;
                             }
 
 

@@ -2,7 +2,9 @@
 ## https://github.com/BlueMatthew/WechatExporter
 执行文件下载：
 win x64: https://github.com/BlueMatthew/WechatExporter/releases/download/v1.0/x64_win.zip
+
 MacOS x64: https://github.com/BlueMatthew/WechatExporter/releases/download/v1.0/x64_macos.zip
+
 
 
 ## WechatExport-iOS
@@ -33,4 +35,5 @@ dotnet wxexp.dll --backup \[iTunes Backup Path] --output \[History Output Path]
 The only open-source one-click application that parses the local database of Wechat, the most popular chatting app in China. This software bypasses the sandbox restriction recently introduced in iOS, and obtain Wechat app's data from an iTunes backup. It then links together data in SQLite files and various assets such as images, audios (format conversion involved), videos, etc. Users get a series of well-formated HTML files of their chat history, so that they can read later on any browsers.
 
 Download latest stable binary here: 在这里下载最新的打包好的程序：
-https://github.com/BlueMatthew/WechatExport-iOS/releases/download/v1.5.0/Release_1.5.0_win.zip
+win x64: https://github.com/BlueMatthew/WechatExporter/releases/download/v1.0/x64_win.zip
+MacOS x64: https://github.com/BlueMatthew/WechatExporter/releases/download/v1.0/x64_macos.zip

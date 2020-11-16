@@ -1,3 +1,8 @@
+# C++重新实现了微信聊天记录导出程序，移除了对dotnet的依赖。参见：
+# https://github.com/BlueMatthew/WechatExporter
+
+
+
 ## WechatExport-iOS
 Save iOS WeChat history as HTML or TXT with neat layout and picture &amp; audio support.
 

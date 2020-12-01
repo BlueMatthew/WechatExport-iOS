@@ -1,6 +1,6 @@
-# C++重新实现了微信聊天记录导出程序，移除了对dotnet的依赖。
-## https://github.com/BlueMatthew/WechatExporter
-执行文件下载：
+## C++重新实现了微信聊天记录导出程序，移除了对dotnet的依赖。 代码参见：  
+### https://github.com/BlueMatthew/WechatExporter  
+执行文件下载：  
 [Windows x64 Exe](https://github.com/BlueMatthew/WechatExporter/releases/download/v1.4/v1.4_x64_win.zip) [MacOS x64 App](https://github.com/BlueMatthew/WechatExporter/releases/download/v1.4/v1.4_x64_macos.zip)
   
   

@@ -1,7 +1,7 @@
 ## C++重新实现了微信聊天记录导出程序，移除了对dotnet的依赖。 代码参见：  
 ### https://github.com/BlueMatthew/WechatExporter  
 执行文件下载：  
-[Windows x64 Exe](https://github.com/BlueMatthew/WechatExporter/releases/download/v1.5/v1.5_x64_win.zip) [MacOS x64 App](https://github.com/BlueMatthew/WechatExporter/releases/download/v1.5/v1.5_x64_macos.zip)
+[Windows x64 Exe](https://github.com/BlueMatthew/WechatExporter/releases/download/v1.7.2/v1.7.2_x64_win.zip) [MacOS x64 App](https://github.com/BlueMatthew/WechatExporter/releases/download/v1.7.2/v1.7.2_x64_macos.zip)
   
   
    
@@ -25,7 +25,7 @@ Save iOS WeChat history as HTML or TXT with neat layout and picture &amp; audio 
 
 ### 操作步骤：
 1. 用iTunes将手机备份到电脑上（建议备份前杀掉微信），Windows操作系统一般位于目录：C:\用户\[用户名]\AppData\Roaming\Apple Computer\MobileSync\Backup\
-2. 下载本代码的执行文件：[win x64](https://github.com/BlueMatthew/WechatExporter/releases/download/v1.5/v1.5_x64_win.zip) 或者[MacOS x64](https://github.com/BlueMatthew/WechatExporter/releases/download/v1.5/v1.5_x64_macos.zip)
+2. 下载本代码的执行文件：[win x64](https://github.com/BlueMatthew/WechatExporter/releases/download/v1.7.2/v1.7.2_x64_win.zip) 或者[MacOS x64](https://github.com/BlueMatthew/WechatExporter/releases/download/v1.7.2/v1.7.2_x64_macos.zip)
 3. 解压压缩文件
 4. 执行解压出来的WechatExport.exe 
 5. 按界面提示进行操作。
@@ -46,5 +46,5 @@ dotnet wxexp.dll --backup \[iTunes Backup Path] --output \[History Output Path]
 The only open-source one-click application that parses the local database of Wechat, the most popular chatting app in China. This software bypasses the sandbox restriction recently introduced in iOS, and obtain Wechat app's data from an iTunes backup. It then links together data in SQLite files and various assets such as images, audios (format conversion involved), videos, etc. Users get a series of well-formated HTML files of their chat history, so that they can read later on any browsers.
 
 Download latest stable binary here: 在这里下载最新的打包好的程序：  
-win x64: https://github.com/BlueMatthew/WechatExporter/releases/download/v1.5/v1.5_x64_win.zip  
-MacOS x64: https://github.com/BlueMatthew/WechatExporter/releases/download/v1.5/v1.5_x64_macos.zip
+win x64: https://github.com/BlueMatthew/WechatExporter/releases/download/v1.7.2/v1.7.2_x64_win.zip  
+MacOS x64: https://github.com/BlueMatthew/WechatExporter/releases/download/v1.7.2/v1.7.2_x64_macos.zip
